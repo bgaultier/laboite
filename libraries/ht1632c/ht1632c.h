@@ -6,7 +6,7 @@
 #ifndef ht1632c_h
 #define ht1632c_h
 
-#include <WProgram.h>
+#include <Arduino.h>
 #include <avr/pgmspace.h>
 
 /*
@@ -165,7 +165,7 @@ public:
     void plot(byte x, byte y, byte color);
     byte getpixel(byte x, byte y);
     byte putchar(int x, int y, char c, byte color = GREEN, byte attr = 0);
-    void putbitmap(int x, int y, prog_uint16_t *bitmap, byte w, byte h, byte color);
+    void putbitmap(int x, int y, uint16_t *bitmap, byte w, byte h, byte color);
     void hscrolltext(int y, char *text, byte color, int delaytime, int times = 1, byte dir = LEFT);
     void vscrolltext(int x, char *text, byte color, int delaytime, int times = 1, byte dir = UP);
     void setfont(byte userfont);
@@ -179,8 +179,8 @@ public:
     void bezier(int x0, int y0, int x1, int y1, int x2, int y2, byte color);
     void profile();
     
-    void write(uint8_t chr);
-    void write(const char *str);
+    size_t write(uint8_t chr);
+    size_t write(const char *str);
     //void write(const uint8_t *buffer, size_t size);
             
     byte *framebuffer;
