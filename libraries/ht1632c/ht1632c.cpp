@@ -278,14 +278,14 @@ byte ht1632c::putchar(int x, int y, char c, byte color, byte attr)
 
 /* put a bitmap in the coordinates x, y */
 
-void ht1632c::putbitmap(int x, int y, prog_uint16_t *bitmap, byte w, byte h, byte color)
+void ht1632c::putbitmap(int x, int y, uint16_t *bitmap, byte w, byte h, byte color)
 {
   if (x < -w || x > x_max + w || y < -h || y > y_max + h)
     return;
   word msb = pow2(w-1);
   for (byte row = 0; row < h; row++)
   {
-    uint16_t dots = pgm_read_word_near(&bitmap[row]);
+    uint16_t dots = bitmap[row];
     if (dots && color)
       for (byte col = 0; col < w; col++)
       {
@@ -674,7 +674,7 @@ void ht1632c::fill(byte x, byte y, byte color)
   fill_l(x-1, y, color);
 }
 
-void ht1632c::write(uint8_t chr)
+size_t ht1632c::write(uint8_t chr)
 {
   byte x, y;
   if (chr == '\n') {
