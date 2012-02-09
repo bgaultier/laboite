@@ -39,9 +39,9 @@ int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
 
 char time[6] = "00:00";             // string to hold the last time we get
-byte todayIcon = 3;
-byte tomorrowIcon = 0;
-char indoorTemperatureString[3] = "21";
+byte todayIcon = 0;
+byte tomorrowIcon = 3;
+char indoorTemperatureString[3] = "22";
 float indoorTemperature;            // temperature readings are returned in float format
 
 // Enter a MAC address and IP address for your controller below.
@@ -169,10 +169,10 @@ void loop()
           for (int x = 32; x > -64; x--)
           {
             dotmatrix.putchar(x+12, 9, ' ', RED);
-            dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, RED);
+            dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, ORANGE);
             
             dotmatrix.putchar(x+12+32, 9, ' ', RED);
-            dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, ORANGE);
+            dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, RED);
             
             dotmatrix.sendframe();
             
