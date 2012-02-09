@@ -38,9 +38,9 @@ TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TK
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
 
-char time[6] = "00:00";             // string to hold the last time we get
-byte todayIcon = 0;
-byte tomorrowIcon = 3;
+byte todayIcon;
+byte tomorrowIcon;
+byte color;
 char indoorTemperatureString[3] = "22";
 float indoorTemperature;            // temperature readings are returned in float format
 
@@ -145,21 +145,24 @@ void loop()
           // if you got a "<" character,
           // you've reached the end of the line:
           reading = false;
-          //Serial.println(data);
-          // copy current time from data String:
-          for(byte i = 0; i < 5; i++)
-          {
-            time[i] = data.charAt(i+1);
-          }
+          
           dotmatrix.setfont(FONT_5x7);
           
-          dotmatrix.putchar(5, 0, time[0], GREEN);
-          dotmatrix.putchar(10, 0, time[1], GREEN);
-          dotmatrix.putchar(14, 0, time[2], GREEN);
-          dotmatrix.putchar(18, 0, time[3], GREEN);
-          dotmatrix.putchar(23, 0, time[4], GREEN);
+          dotmatrix.putchar(5, 0, data.charAt(1), GREEN);
+          dotmatrix.putchar(10, 0, data.charAt(2), GREEN);
+          dotmatrix.putchar(14, 0, ':', GREEN);
+          dotmatrix.putchar(18, 0, data.charAt(4), GREEN);
+          dotmatrix.putchar(23, 0, data.charAt(5), GREEN);
           
           dotmatrix.sendframe();
+          
+          indoorTemperatureString[0] = data.charAt(7);
+          indoorTemperatureString[1] = '\0';
+          todayIcon = atoi(indoorTemperatureString);
+          
+          indoorTemperatureString[0] = data.charAt(12);
+          indoorTemperatureString[1] = '\0';
+          tomorrowIcon = atoi(indoorTemperatureString);
           
           // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
           //indoorTemperature = therm.getCelsius();
@@ -169,10 +172,20 @@ void loop()
           for (int x = 32; x > -64; x--)
           {
             dotmatrix.putchar(x+12, 9, ' ', RED);
-            dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, ORANGE);
+            
+            if(todayIcon == 0)
+              color = ORANGE;
+            else
+              color = RED;
+            dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
             
             dotmatrix.putchar(x+12+32, 9, ' ', RED);
-            dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, RED);
+            
+            if(tomorrowIcon == 0)
+              color = ORANGE;
+            else
+              color = RED;
+            dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
             
             dotmatrix.sendframe();
             
@@ -248,6 +261,8 @@ void connectToServer()
 
 void printTemperature(int x, char firstDigit, char secondDigit, byte color)
 {
+  if(firstDigit == '0')
+    firstDigit = ' ';
   dotmatrix.putchar(x, 9, firstDigit, color);
   dotmatrix.putchar(x+5, 9, secondDigit, color);
   dotmatrix.putchar(x+10, 9, '\'', color);
