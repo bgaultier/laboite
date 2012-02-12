@@ -130,7 +130,7 @@ void setup() {
   dotmatrix.pwm(pwm);
   
   // display a welcome message:
-  //Serial.println("Weather Station v0.6 starting...");
+  //Serial.println("Weather Station v0.7 starting...");
   
   // start the Ethernet connection
   Ethernet.begin(mac, ip, subnet);
