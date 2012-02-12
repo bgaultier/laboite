@@ -1,6 +1,6 @@
 /*
 
- Weather Station v0.5
+ Weather Station v0.6
  
  Key Features:
  * Indoor Temperature
@@ -28,12 +28,11 @@
 // initialize the dotmatrix with the numbers of the interface pins
 ht1632c dotmatrix = ht1632c(PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
-
 TKLightSensor ldr(I0);    // creating the object 'ldr' that belongs to the 'TKLightSensor' class
 
-/*TKThermistor therm(I1);   // creating the object 'therm' that belongs to the 'TKThermistor' class 
+TKThermistor therm(I1);   // creating the object 'therm' that belongs to the 'TKThermistor' class 
 
-TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TKTouchSensor' class*/
+//TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TKTouchSensor' class
 
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
@@ -42,7 +41,7 @@ byte todayIcon;
 byte tomorrowIcon;
 byte color;
 char indoorTemperatureString[3] = "22";
-float indoorTemperature;            // temperature readings are returned in float format
+byte indoorTemperature;            // temperature readings are returned in float format
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -50,15 +49,16 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
-IPAddress ip(169, 254, 0, 64);
-IPAddress subnet(255, 255, 0, 0);
+IPAddress ip(192, 168, 0, 64);
+IPAddress subnet(255, 255, 255, 0);
 
 // initialize the library instance:
 EthernetClient client;
 
 const int requestInterval = 10000;  // delay between requests
 
-char serverName[] = "api.baptistegaultier.fr"; // Your favorite weather server
+//char serverName[] = "api.baptistegaultier.fr"; // Your favorite weather server
+IPAddress server(82, 165, 110, 226);             // Your favorite weather server IP address
 
 boolean requested;                   // whether you've made a request since connecting
 long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
@@ -68,7 +68,7 @@ String data = "";                    // string to hold the data
 boolean reading = false;             // if you're currently reading the data
 
 // weather forecast sprites:
-uint16_t sprites[6][9] =
+uint16_t sprites[5][9] =
 {
   { 0x0100, 0x0100, 0x2008, 0x1390, 0x0440, 0x0820, 0x682c, 0x0820, 0x0440 },
   { 0x0000, 0x01c0, 0x0230, 0x1c08, 0x2208, 0x4004, 0x4004, 0x3ff8, 0x0000 },
@@ -90,16 +90,13 @@ void setup() {
   dotmatrix.pwm(pwm);
   
   // display a welcome message:
-  Serial.println("Weather Station v0.5 starting...");
+  //Serial.println("Weather Station v0.6 starting...");
   
-  // attempt a DHCP connection:
-  if (!Ethernet.begin(mac)) {
-    // if DHCP fails, start with a hard-coded address:
-    Ethernet.begin(mac, ip, subnet);
-  }
+  // start the Ethernet connection
+  Ethernet.begin(mac, ip, subnet);
   
   // print your local IP address:
-  Serial.print("My IP address: ");
+  /*Serial.print("My IP address: ");
   ip = Ethernet.localIP();
   for (byte thisByte = 0; thisByte < 4; thisByte++)
   {
@@ -107,7 +104,7 @@ void setup() {
     Serial.print(ip[thisByte], DEC);
     Serial.print("."); 
   }
-  Serial.println();
+  Serial.println();*/
   // connect to API server:
   connectToServer();
 }
@@ -165,9 +162,8 @@ void loop()
           tomorrowIcon = atoi(indoorTemperatureString);
           
           // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-          //indoorTemperature = therm.getCelsius();
-          
-          //dtostrf(indoorTemperature, 2, 0, indoorTemperatureString);
+          indoorTemperature = therm.getCelsius();
+          itoa (indoorTemperature, indoorTemperatureString, 10);
           
           for (int x = 32; x > -64; x--)
           {
@@ -197,7 +193,7 @@ void loop()
             
             if(x >= -32 && x < 0)
             {
-              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], GREEN);
+              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
               printTemperature(x+49, data.charAt(14), data.charAt(15), RED);
               dotmatrix.sendframe();
             }
@@ -213,7 +209,7 @@ void loop()
             if(x == 0)
             {
               delay(800);
-              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], GREEN);
+              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
               dotmatrix.sendframe();
               delay(800);
             }
@@ -243,12 +239,12 @@ void loop()
 void connectToServer()
 {
   // attempt to connect:
-  Serial.print("Connecting to ");
+  /*Serial.print("Connecting to ");
   Serial.print(serverName);
-  Serial.println("...");
-  if (client.connect(serverName, 80))
+  Serial.println("...");*/
+  if (client.connect(server, 80))
   {
-    Serial.println("Making HTTP request...");
+    //Serial.println("Making HTTP request...");
     // make HTTP GET request to API server:
     client.println("GET /weather.php HTTP/1.1");
     client.println("Host: api.baptistegaultier.fr");
@@ -273,6 +269,6 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   dotmatrix.pwm(pwm);
   
   // print the results to the serial monitor:
-  Serial.print("brightness : " );                      
-  Serial.println(brightnessValue);  
+  //Serial.print("brightness : " );                      
+  //Serial.println(brightnessValue);  
 }
