@@ -1,6 +1,6 @@
 /*
 
- Weather Station v0.6
+ Weather Station v0.7
  
  Key Features:
  * Indoor Temperature
@@ -8,6 +8,7 @@
  * Automatic screen brightness adjusting
  * Automatic time (NTP)
  * Weather forecast icons (sunny, cloudy, rain, snow, fog)
+ * Next bus arrival information from Keolis gtfs
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
@@ -24,6 +25,37 @@
 #include <Ethernet.h>
 #include <ht1632c.h>
 #include <TinkerKit.h>
+#define HOURS 24
+#define MAX_STOPS 9
+
+
+int timetable[HOURS][MAX_STOPS] =
+{
+  {27},
+  {},
+  {},
+  {},
+  {},
+  {40},
+  {20, 57},
+  {8, 18, 29, 37, 43, 50, 59},
+  {8, 17, 26, 34, 42, 49, 57},
+  {4, 11, 18, 26, 34, 42, 49, 56},
+  {4, 11, 20, 29, 38, 47, 56},
+  {5, 14, 22, 30, 37, 45, 54},
+  {4, 14, 23, 32, 42, 51},
+  {0, 8, 17, 26, 34, 43, 52},
+  {0, 9, 18, 27, 36, 44, 53},
+  {3, 12, 21, 29, 38, 48, 57},
+  {6, 16, 25, 34, 43, 52},
+  {1, 8, 14, 22, 30, 38, 46, 54},
+  {2, 11, 20, 29, 37, 44, 50, 56},
+  {3, 10, 18, 25, 33, 39, 47, 57},
+  {7, 17, 27, 37, 47, 57},
+  {20, 52},
+  {22, 52},
+  {27,57}
+};
 
 // initialize the dotmatrix with the numbers of the interface pins
 ht1632c dotmatrix = ht1632c(PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
@@ -37,10 +69,13 @@ TKThermistor therm(I1);   // creating the object 'therm' that belongs to the 'TK
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
 
+char hour [3];
+char minutes[3];
+char nextBusString[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
-char indoorTemperatureString[3] = "22";
+char indoorTemperatureString[3];
 byte indoorTemperature;            // temperature readings are returned in float format
 
 // Enter a MAC address and IP address for your controller below.
@@ -77,6 +112,11 @@ uint16_t sprites[5][9] =
   { 0x0540, 0x0380, 0x1110, 0x0920, 0x1ff0, 0x0920, 0x1110, 0x0380, 0x0540 }
 };
 
+// bus sprite
+uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
+
+
+
 
 void setup() {
   // reserve space for the strings:
@@ -84,7 +124,7 @@ void setup() {
   data.reserve(16);
   
   // initialize serial:
-  Serial.begin(9600);
+  //Serial.begin(9600);
   // initialize dotmatrix:
   dotmatrix.clear();
   dotmatrix.pwm(pwm);
@@ -139,7 +179,7 @@ void loop()
           data += inChar;
         } 
         else {
-          // if you got a "<" character,
+          // if you got a ";" character,
           // you've reached the end of the line:
           reading = false;
           
@@ -152,6 +192,15 @@ void loop()
           dotmatrix.putchar(23, 0, data.charAt(5), GREEN);
           
           dotmatrix.sendframe();
+          
+          
+          hour[0] = data.charAt(1);
+          hour[1] = data.charAt(2);
+          hour[3] = '\0';
+          
+          minutes[0] = data.charAt(4);
+          minutes[1] = data.charAt(5);
+          minutes[3] = '\0';
           
           indoorTemperatureString[0] = data.charAt(7);
           indoorTemperatureString[1] = '\0';
@@ -223,6 +272,39 @@ void loop()
             }
           }
           
+          itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
+          
+          // next bus
+          for (int x = 32; x > -32; x--)
+          {
+            // read the analog in value:
+            brightnessValue = ldr.get();
+            pwm = map(brightnessValue, 0, 1023, 0, 15);
+            dotmatrix.pwm(pwm);
+            
+            dotmatrix.putchar(x+11, 10, ' ', GREEN);
+            
+            dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);          
+            dotmatrix.putchar(x+11, 9, nextBusString[0], GREEN);
+            
+            if(nextBusString[1] == '\0')
+            {
+              dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
+            }
+            else
+            {
+              dotmatrix.putchar(x+5+11, 9, nextBusString[1], GREEN);
+              dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
+            }
+            
+            dotmatrix.sendframe();
+            
+            delay(50);
+            
+            if(x == 0)
+              delay(800);
+          }
+          
           // close the connection to the server:
           client.stop(); 
         }
@@ -261,7 +343,7 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
     firstDigit = ' ';
   dotmatrix.putchar(x, 9, firstDigit, color);
   dotmatrix.putchar(x+5, 9, secondDigit, color);
-  dotmatrix.putchar(x+10, 9, '\'', color);
+  dotmatrix.putchar(x+10, 9, '*', color);
   
   // read the analog in value:
   brightnessValue = ldr.get();
@@ -271,4 +353,22 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   // print the results to the serial monitor:
   //Serial.print("brightness : " );                      
   //Serial.println(brightnessValue);  
+}
+
+int nextBus(int hour, int minutes) {
+  for (int index = 0; index < MAX_STOPS; index++)
+  {
+    if(timetable[hour][index] < minutes);
+      //Serial.println(timetable[hour][index]);
+    else {
+      /*Serial.print("Prochain bus dans ");
+      Serial.print(abs(minutes - timetable[hour][index]));
+      Serial.println(" minutes.");*/
+      return abs(minutes - timetable[hour][index]);
+    }
+  }
+  /*Serial.print("Prochain bus dans ");
+  Serial.print(timetable[hour+1][0] + (60 - minutes));
+  Serial.println(" minutes.");*/
+  return timetable[hour+1][0] + (60 - minutes);
 }
