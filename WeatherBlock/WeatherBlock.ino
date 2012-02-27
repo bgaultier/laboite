@@ -84,8 +84,8 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
-IPAddress ip(192, 168, 0, 64);
-IPAddress subnet(255, 255, 255, 0);
+IPAddress ip(169, 254, 0, 64);
+IPAddress subnet(255, 255, 0, 0);
 
 // initialize the library instance:
 EthernetClient client;
@@ -132,8 +132,11 @@ void setup() {
   // display a welcome message:
   //Serial.println("Weather Station v0.7 starting...");
   
-  // start the Ethernet connection
-  Ethernet.begin(mac, ip, subnet);
+  // attempt a DHCP connection:
+  if (!Ethernet.begin(mac)) {
+    // if DHCP fails, start with a hard-coded address:
+    Ethernet.begin(mac, ip, subnet);
+  }
   
   // print your local IP address:
   /*Serial.print("My IP address: ");
