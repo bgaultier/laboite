@@ -64,7 +64,9 @@ TKLightSensor ldr(I0);    // creating the object 'ldr' that belongs to the 'TKLi
 
 TKThermistor therm(I1);   // creating the object 'therm' that belongs to the 'TKThermistor' class 
 
-//TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TKTouchSensor' class
+TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TKTouchSensor' class
+
+boolean scrolling = true; // value modified when touch sensor pressed
 
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
@@ -114,9 +116,6 @@ uint16_t sprites[5][9] =
 
 // bus sprite
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
-
-
-
 
 void setup() {
   // reserve space for the strings:
@@ -196,116 +195,118 @@ void loop()
           
           dotmatrix.sendframe();
           
-          
-          hour[0] = data.charAt(1);
-          hour[1] = data.charAt(2);
-          hour[3] = '\0';
-          
-          minutes[0] = data.charAt(4);
-          minutes[1] = data.charAt(5);
-          minutes[3] = '\0';
-          
-          indoorTemperatureString[0] = data.charAt(7);
-          indoorTemperatureString[1] = '\0';
-          todayIcon = atoi(indoorTemperatureString);
-          
-          indoorTemperatureString[0] = data.charAt(12);
-          indoorTemperatureString[1] = '\0';
-          tomorrowIcon = atoi(indoorTemperatureString);
-          
-          // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-          indoorTemperature = therm.getCelsius();
-          itoa (indoorTemperature, indoorTemperatureString, 10);
-          
-          for (int x = 32; x > -64; x--)
+          if(scrolling)
           {
-            dotmatrix.putchar(x+12, 9, ' ', RED);
+            hour[0] = data.charAt(1);
+            hour[1] = data.charAt(2);
+            hour[3] = '\0';
             
-            if(todayIcon == 0)
-              color = ORANGE;
-            else
-              color = RED;
-            dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+            minutes[0] = data.charAt(4);
+            minutes[1] = data.charAt(5);
+            minutes[3] = '\0';
             
-            dotmatrix.putchar(x+12+32, 9, ' ', RED);
+            indoorTemperatureString[0] = data.charAt(7);
+            indoorTemperatureString[1] = '\0';
+            todayIcon = atoi(indoorTemperatureString);
             
-            if(tomorrowIcon == 0)
-              color = ORANGE;
-            else
-              color = RED;
-            dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
+            indoorTemperatureString[0] = data.charAt(12);
+            indoorTemperatureString[1] = '\0';
+            tomorrowIcon = atoi(indoorTemperatureString);
             
-            dotmatrix.sendframe();
+            // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
+            indoorTemperature = therm.getCelsius();
+            itoa (indoorTemperature, indoorTemperatureString, 10);
             
-            if(x >= 0)
+            for (int x = 32; x > -64; x--)
             {
-              printTemperature(x+17, data.charAt(9), data.charAt(10), RED);
+              dotmatrix.putchar(x+12, 9, ' ', RED);
+              
+              if(todayIcon == 0)
+                color = ORANGE;
+              else
+                color = RED;
+              dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+              
+              dotmatrix.putchar(x+12+32, 9, ' ', RED);
+              
+              if(tomorrowIcon == 0)
+                color = ORANGE;
+              else
+                color = RED;
+              dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
+              
               dotmatrix.sendframe();
+              
+              if(x >= 0)
+              {
+                printTemperature(x+17, data.charAt(9), data.charAt(10), RED);
+                dotmatrix.sendframe();
+              }
+              
+              if(x >= -32 && x < 0)
+              {
+                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                printTemperature(x+49, data.charAt(14), data.charAt(15), RED);
+                dotmatrix.sendframe();
+              }
+              
+              if(x >= -63 && x < -32) {
+                printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
+                dotmatrix.sendframe();
+              }
+              
+              
+              delay(50);
+              
+              if(x == 0)
+              {
+                delay(800);
+                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                dotmatrix.sendframe();
+                delay(800);
+              }
+              
+              if(x == -32)
+              {
+                delay(800);
+                printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
+                dotmatrix.sendframe();
+                delay(800);
+              }
             }
             
-            if(x >= -32 && x < 0)
+            itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
+            
+            // next bus
+            for (int x = 32; x > -24; x--)
             {
-              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-              printTemperature(x+49, data.charAt(14), data.charAt(15), RED);
+              // read the analog in value:
+              brightnessValue = ldr.get();
+              pwm = map(brightnessValue, 0, 1023, 0, 15);
+              dotmatrix.pwm(pwm);
+              
+              dotmatrix.putchar(x+11, 10, ' ', GREEN);
+              
+              dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);          
+              dotmatrix.putchar(x+11, 9, nextBusString[0], GREEN);
+              
+              if(nextBusString[1] == '\0')
+              {
+                dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
+              }
+              else
+              {
+                dotmatrix.putchar(x+5+11, 9, nextBusString[1], GREEN);
+                dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
+              }
+              
               dotmatrix.sendframe();
+              
+              delay(50);
+              
+              if(x == 6)
+                delay(800);
             }
-            
-            if(x >= -63 && x < -32) {
-              printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
-              dotmatrix.sendframe();
-            }
-            
-            
-            delay(50);
-            
-            if(x == 0)
-            {
-              delay(800);
-              printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-              dotmatrix.sendframe();
-              delay(800);
-            }
-            
-            if(x == -32)
-            {
-              delay(800);
-              printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
-              dotmatrix.sendframe();
-              delay(800);
-            }
-          }
-          
-          itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
-          
-          // next bus
-          for (int x = 32; x > -32; x--)
-          {
-            // read the analog in value:
-            brightnessValue = ldr.get();
-            pwm = map(brightnessValue, 0, 1023, 0, 15);
-            dotmatrix.pwm(pwm);
-            
-            dotmatrix.putchar(x+11, 10, ' ', GREEN);
-            
-            dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);          
-            dotmatrix.putchar(x+11, 9, nextBusString[0], GREEN);
-            
-            if(nextBusString[1] == '\0')
-            {
-              dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
-            }
-            else
-            {
-              dotmatrix.putchar(x+5+11, 9, nextBusString[1], GREEN);
-              dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
-            }
-            
-            dotmatrix.sendframe();
-            
-            delay(50);
-            
-            if(x == 0)
-              delay(800);
           }
           
           // close the connection to the server:
@@ -315,8 +316,10 @@ void loop()
     }   
   }
   else if (millis() - lastAttemptTime > requestInterval) {
-    // if you're not connected, and two minutes have passed since
+    // if you're not connected, and ten seconds have passed since
     // your last connection, then attempt to connect again:
+    if(touch.get())
+      scrolling = !scrolling;
     connectToServer();
   }
 }
