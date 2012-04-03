@@ -25,6 +25,7 @@ getpixel	KEYWORD2
 setfont	KEYWORD2
 putbitmap	KEYWORD2
 sendframe	KEYWORD2
+profile			KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

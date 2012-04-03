@@ -1,6 +1,6 @@
 /*
 
- Weather Station v0.7
+ laboite v0.8
  
  Key Features:
  * Indoor Temperature
@@ -27,7 +27,6 @@
 #include <TinkerKit.h>
 #define HOURS 24
 #define MAX_STOPS 9
-
 
 int timetable[HOURS][MAX_STOPS] =
 {
@@ -58,7 +57,7 @@ int timetable[HOURS][MAX_STOPS] =
 };
 
 // initialize the dotmatrix with the numbers of the interface pins
-ht1632c dotmatrix = ht1632c(PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
+ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
 TKLightSensor ldr(I0);    // creating the object 'ldr' that belongs to the 'TKLightSensor' class
 

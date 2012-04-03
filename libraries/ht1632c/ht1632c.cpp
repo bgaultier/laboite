@@ -1,129 +1,246 @@
-#include <avr/io.h> 
-#include <avr/wdt.h>
-#include <avr/pgmspace.h>
-#include "Print.h"
-
-#undef abs
+#include <stdio.h>
 #include <stdlib.h>
-
-#define ht1632c_lib
-#include <ht1632c.h>
+#include <string.h>
+#include "ht1632c.h"
+#include "Print.h"
 #include "font.h"
+#include "font_koi8.h"
 
-//void ht1632c::_clk_pulse(byte num)
-/*
-void _clk_pulse(byte num)
+/* fast integer (1 uint8_t) modulus - returns n % d */
+
+uint8_t _mod(uint8_t n, uint8_t d)
+{
+  while(n >= d)
+    n -= d;
+
+  return n;
+}
+
+/* fast integer (1 uint8_t) division - returns n / d */
+
+uint8_t _div(uint8_t n, uint8_t d)
+{
+  uint8_t q = 0;
+  while(n >= d)
+  {
+    n -= d;
+    q++;
+  }
+  return q;
+}
+
+/* fast integer (1 uint8_t) PRNG */
+
+uint8_t _rnd(uint8_t min, uint8_t max)
+{
+  static uint8_t seed;
+  seed = (21 * seed + 21);
+  return min + _mod(seed, --max);
+}
+
+/* ht1632c class properties */
+
+uint8_t *ht1632c::g_fb;
+uint8_t *ht1632c::r_fb;
+volatile uint8_t *ht1632c::_port;
+#if defined (__AVR__)
+uint8_t ht1632c::_data;
+uint8_t ht1632c::_wr;
+uint8_t ht1632c::_clk;
+uint8_t ht1632c::_cs;
+#elif defined (__ARMEL__) || defined (__PIC32MX__)
+_port_t ht1632c::_data;
+_port_t ht1632c::_wr;
+_port_t ht1632c::_clk;
+_port_t ht1632c::_cs;
+#endif
+
+/* ht1632c class constructor */
+
+ht1632c::ht1632c(const uint8_t data, const uint8_t wr, const uint8_t clk, const uint8_t cs, const uint8_t geometry, const uint8_t number)
+{
+#if defined (__ARMEL__)
+  _data.dev = PIN_MAP[data].gpio_device;
+  _data.mask = PIN_MAP[data].gpio_bit;
+  _wr.dev = PIN_MAP[wr].gpio_device;
+  _wr.mask = PIN_MAP[wr].gpio_bit;
+  _clk.dev = PIN_MAP[clk].gpio_device;
+  _clk.mask = PIN_MAP[clk].gpio_bit;
+  _cs.dev = PIN_MAP[cs].gpio_device;
+  _cs.mask = PIN_MAP[cs].gpio_bit;
+
+  gpio_set_mode(_data.dev, _data.mask, GPIO_OUTPUT_PP);
+  gpio_set_mode(_wr.dev, _wr.mask, GPIO_OUTPUT_PP);
+  gpio_set_mode(_clk.dev, _clk.mask, GPIO_OUTPUT_PP);
+  gpio_set_mode(_cs.dev, _cs.mask, GPIO_OUTPUT_PP);
+#elif defined (__PIC32MX__)
+  _data.regs = (volatile p32_ioport *)portRegisters(digitalPinToPort(data));
+  _wr.regs = (volatile p32_ioport *)portRegisters(digitalPinToPort(wr));
+  _clk.regs = (volatile p32_ioport *)portRegisters(digitalPinToPort(clk));
+  _cs.regs = (volatile p32_ioport *)portRegisters(digitalPinToPort(cs));
+
+  _data.mask = digitalPinToBitMask(data);
+  _wr.mask = digitalPinToBitMask(wr);
+  _clk.mask = digitalPinToBitMask(clk);
+  _cs.mask = digitalPinToBitMask(cs);
+
+  _data.regs->tris.clr = _data.mask;
+  _data.regs->odc.clr  = _data.mask;
+  _wr.regs->tris.clr = _wr.mask;
+  _wr.regs->odc.clr  = _wr.mask;
+  _clk.regs->tris.clr = _clk.mask;
+  _clk.regs->odc.clr  = _clk.mask;
+  _cs.regs->tris.clr = _cs.mask;
+  _cs.regs->odc.clr  = _cs.mask;
+#endif
+  _setup(number);
+  clear();
+}
+
+ht1632c::ht1632c(volatile uint8_t *port, const uint8_t data, const uint8_t wr, const uint8_t clk, const uint8_t cs, const uint8_t geometry, const uint8_t number)
+{
+#if defined (__AVR__)
+  _port = port;
+
+  _data = 1 << (data & 7);
+  _wr = 1 << (wr & 7);
+  _clk = 1 << (clk & 7);
+  _cs = 1 << (cs & 7);
+
+  _port--;
+  _set(_data);
+  _set(_wr);
+  _set(_clk);
+  _set(_cs);
+  _port++;
+#endif
+  _setup(number);
+  clear();
+}
+
+/* ht1632c class low level functions */
+
+inline void ht1632c::_set(_port_t port)
+{
+#if defined (__ARMEL__)
+  port.dev->regs->BSRR = BIT(port.mask);
+#elif defined (__PIC32MX__)
+  port.regs->lat.set = port.mask;
+#endif
+}
+
+inline void ht1632c::_toggle(_port_t port)
+{
+#if defined (__ARMEL__)
+  port.dev->regs->ODR = port.dev->regs->ODR ^ BIT(port.mask);
+#elif defined (__PIC32MX__)
+  port.regs->lat.inv = port.mask;
+#endif
+}
+
+inline void ht1632c::_reset(_port_t port)
+{
+#if defined (__ARMEL__)
+  port.dev->regs->BRR = BIT(port.mask);
+#elif defined (__PIC32MX__)
+  port.regs->lat.clr = port.mask;
+#endif
+}
+
+void ht1632c::_set(uint8_t val)
+{
+#ifdef USE_ASM
+  asm (
+    "ld      __tmp_reg__, %a0"  "\n"
+    "or      __tmp_reg__,  %1"  "\n"
+    "st      %a0, __tmp_reg__"  "\n"
+    :
+    : "e" (_port), "r" (val)
+    :
+  );
+#else
+  *_port |= val;
+#endif
+}
+
+void ht1632c::_toggle(uint8_t val)
+{
+#ifdef USE_ASM
+  asm (
+    "ld      __tmp_reg__, %a0"  "\n"
+    "eor     __tmp_reg__,  %1"  "\n"
+    "st      %a0, __tmp_reg__"  "\n"
+    :
+    : "e" (_port), "r" (val)
+    :
+  );
+#else
+  *_port ^= val;
+#endif
+}
+
+void ht1632c::_reset(uint8_t val)
+{
+#ifdef USE_ASM
+  asm (
+    "ld      __tmp_reg__, %a0"  "\n"
+    "or      __tmp_reg__,  %1"  "\n"
+    "eor     __tmp_reg__,  %1"  "\n"
+    "st      %a0, __tmp_reg__"  "\n"
+    :
+    : "e" (_port), "r" (val)
+    :
+  );
+#else
+  *_port &= ~val;
+#endif
+}
+
+inline void ht1632c::_pulse(uint8_t num, _port_t port)
 {
   while(num--)
   {
-    _clk_set();
-    _clk_clr();
+    _set(port);
+    _toggle(port);
   }
 }
-*/
 
-word inline pow2(byte exp)
+void ht1632c::_pulse(uint8_t num, uint8_t val)
 {
-  word result = 1;
-
-  while(exp--)
-    result *= 2;
-
-  return result;
-}
-
-ht1632c::ht1632c(const byte geometry, const byte number)
-{
-  if (geometry != GEOM_32x16) return;
-  bicolor = true;
-  x_max = (32 * number) - 1;
-  y_max = 15;
-  cs_max = 4 * number;
-  framesize = 32 * cs_max;
-  framebuffer = (byte*) malloc(framesize);
-  setfont(FONT_5x7W);
-  x_cur = 0;
-  y_cur = 0;
-
-  _data_out();
-  _wr_out();
-  _clk_out();
-  _cs_out();
-  setup();
-}
-
-/*
-void ht1632class::begin(const byte data, const byte wr, const byte clk, const byte cs, byte geometry, byte number = 1)
-{
-  if (geometry != GEOM_32x16) return;
-  bicolor = true;
-  x_max = (32 * number) - 1;
-  y_max = 15;
-  cs_max = 4 * number;
-  framesize = 32 * cs_max;
-  framebuffer = (byte*) malloc(framesize);
-
-  _data = _pin(data);
-  _wr = _pin(wr);
-  _clk = _pin(clk);
-  _cs = _pin(cs);
-
-  setup();
-}
-*/
-/*
-void ht1632class::begin(byte data, byte wr, byte cs1, byte cs2, byte cs3, byte cs4, byte geometry, byte number = 1)
-{
-  if ((geometry != GEOM_32x8) || (geometry != GEOM_24x16)) return;
-  bicolor = false;
-  cs_max = number;
-  if (geometry == GEOM_32x8) { 
-    framesize = 64 * cs_max; 
-    x_max = (32 * number) - 1;
-    y_max = 7;
+  while(num--)
+  {
+    _set(val);
+    _toggle(val);
   }
-  if (geometry == GEOM_24x16) { 
-    framesize = 96 * cs_max;
-    x_max = (24 * number) - 1;
-    y_max = 15;
-  }
-  framebuffer = (byte*) malloc(framesize);
-
-  ht1632_data.pin = data;
-  ht1632_wr.pin = wr;
-  ht1632_clk.pin = 0;
-
-  setup();
 }
-*/
-/*
-void ht1632c::chipselect(byte cs)
+
+void ht1632c::_writebits (uint8_t bits, uint8_t msb)
 {
-  if (cs == HT1632_CS_ALL) { // Enable all ht1632class
-    _cs_clr();
-    _clk_pulse(cs_max);
-  } else if (cs == HT1632_CS_NONE) { //Disable all ht1632classs
-    _cs_set(); 
-    _clk_pulse(cs_max);
+  do {
+    (bits & msb) ? _set(_data) : _reset(_data);
+    _reset(_wr);
+    _set(_wr);
+  } while (msb >>= 1);
+}
+
+void ht1632c::_chipselect(uint8_t cs)
+{
+  _reset(_cs);
+  if (cs == HT1632_CS_ALL) {
+    _pulse(HT1632_CS_ALL, _clk);
+  } else if (cs == HT1632_CS_NONE) {
+    _set(_cs);
+    _pulse(HT1632_CS_ALL, _clk);
   } else {
-    _cs_clr();
-    _clk_pulse(1);
-    _cs_set(); 
-    _clk_pulse(cs - 1);
+    _pulse(1, _clk);
+    _set(_cs);
+    _pulse(cs - 1, _clk);
   }
 }
 
-void ht1632c::writebits (byte bits, byte msb)
-{
-  while (msb) {
-    !!(bits & msb) ? _data_set() : _data_clr();
-    _wr_clr();
-    _wr_set();
-    msb >>= 1;
-  }
-}
-*/
-void ht1632c::sendcmd(byte cs, byte command)
+/* send a command to selected HT1632Cs */
+
+void ht1632c::_sendcmd(uint8_t cs, uint8_t command)
 {
   _chipselect(cs);
   _writebits(HT1632_ID_CMD, HT1632_ID_LEN);
@@ -134,51 +251,65 @@ void ht1632c::sendcmd(byte cs, byte command)
 
 /* HT1632Cs based display initialization  */
 
-void ht1632c::setup()
+void ht1632c::_setup(uint8_t number)
 {
-/*
-  _out(_data);
-  _out(_wr);
-  _out(_clk);
-  _out(_cs);
-*/
+  bicolor = true;
+  x_max = (32 * number) - 1;
+  y_max = 15;
+  cs_max = 4 * number;
+  fb_size = 16 * cs_max;
+  g_fb = (uint8_t*) malloc(fb_size);
+  r_fb = (uint8_t*) malloc(fb_size);
+  setfont(FONT_5x7W);
+  x_cur = 0;
+  y_cur = 0;
+
   noInterrupts();
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_SYSDIS);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_COMS00);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_MSTMD);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_RCCLK);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_SYSON);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_LEDON);
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_PWM);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_SYSDIS);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_COMS00);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_MSTMD);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_RCCLK);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_SYSON);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_LEDON);
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_PWM);
   interrupts();
 }
 
 /* set the display brightness */ 
 
-void ht1632c::pwm(byte value)
+void ht1632c::pwm(uint8_t value)
 {
-  sendcmd(HT1632_CS_ALL, HT1632_CMD_PWM | value);
+  noInterrupts();
+  _sendcmd(HT1632_CS_ALL, HT1632_CMD_PWM | value);
+  interrupts();
 }
 
 /* write the framebuffer to the display - to be used after one or more textual or graphic functions */ 
 
 void ht1632c::sendframe()
 {
-  byte data, offs, cs;
-  word addr;
+  uint8_t data, offs, cs;
+  uint8_t addr, csm;
+  csm = cs_max;
 
   noInterrupts();
-  for (cs = 0; cs < cs_max; cs++)
+  for (cs = 0; cs < csm; cs++)
   {
-    _chipselect(cs+1);
+#ifdef USE_NLFB
+    addr = cs << 4;
+#else
+    addr = cs + (cs & ~1);
+    if (_div(cs << 1, csm))
+      addr -= (csm - 2);
+    addr <<= 4;
+#endif
+    _chipselect(cs + 1);
     _writebits(HT1632_ID_WR, HT1632_ID_LEN);
     _writebits(0, HT1632_ADDR_LEN);
-    addr = cs + (cs & 2) - 2*!!(cs & 4);
-    addr *= 16;
     for (offs = 0; offs < 16; offs++)
-      _writebits(framebuffer[addr+offs], HT1632_DATA_LEN);
+      _writebits(g_fb[addr+offs], HT1632_DATA_LEN);
     for (offs = 0; offs < 16; offs++)
-      _writebits(framebuffer[addr+offs+128], HT1632_DATA_LEN);
+      _writebits(r_fb[addr+offs], HT1632_DATA_LEN);
     _chipselect(HT1632_CS_NONE);
   }
   interrupts();
@@ -190,130 +321,129 @@ void ht1632c::clear()
 {
   x_cur = 0;
   y_cur = 0;
-  memset(framebuffer, 0, framesize);
+  memset(g_fb, 0, fb_size);
+  memset(r_fb, 0, fb_size);
   sendframe();
 }
 
-void ht1632c::update_framebuffer(word addr, byte target_bitval, byte pixel_bitval) 
+inline void ht1632c::_update_fb(uint8_t *ptr, uint8_t target, uint8_t pixel)
 {
-  byte &v = framebuffer[addr];
-  (target_bitval) ? v |= pixel_bitval : v &= ~pixel_bitval;
+  uint8_t &val = *ptr;
+#if defined (__ARMEL__)
+  (target) ? val |= pixel : val &= ~pixel;
+#else
+  val |= pixel;
+  if (!target)
+    val ^= pixel;
+#endif
 }
 
 /* put a single pixel in the coordinates x, y */
 
-void ht1632c::plot (byte x, byte y, byte color)
+void ht1632c::plot (uint8_t x, uint8_t y, uint8_t color)
 {
-  byte bitval;
-  word addr;
+  uint8_t val, csm;
+  uint8_t addr;
 
-  if (x < 0 || x > x_max || y < 0 || y > y_max)
+  if (x > x_max)
     return;
 
-  if (color != BLACK && color != GREEN && color != RED && color != ORANGE)
-    return;
+#ifdef USE_NLFB
+  addr = (x & 31) + ((x & ~31) << 1) + ((y & ~7) << 2);
+#else
+  csm = cs_max;
+  addr = x + csm * (y & ~7);
+#endif
+  val = 128 >> (y & 7);
 
-  bitval = 128 >> (y & 7);
-  addr = (x & 63) + 8*(y & ~7);
-
-  update_framebuffer(addr, (color & GREEN), bitval);
-  update_framebuffer(addr+128, (color & RED), bitval); 
+  _update_fb(g_fb+addr, (color & GREEN), val);
+  _update_fb(r_fb+addr, (color & RED), val);
 }
 
 /* print a single character */
 
-byte ht1632c::putchar(int x, int y, char c, byte color, byte attr)
+uint8_t ht1632c::putchar(int x, int y, char c, uint8_t color, uint8_t attr, uint8_t bgcolor)
 {
-  word dots, msb;
+  uint16_t dots, msb;
+  char col, row;
 
-  if (x < -font_width || x > x_max + font_width || y < -font_height || y > y_max + font_height)
+  uint8_t width = font_width;
+  uint8_t height = font_height;
+
+  if (x < -width || x > x_max + width || y < -height || y > y_max + height)
     return 0;
-  
-  register byte width = font_width;
-  register byte height = font_height;
 
-  c -= 32;
-  msb = pow2(height-1);
-  //attr = PROPORTIONAL; // TESTPOINT
-  
+  if ((unsigned char) c >= 0xc0) c -= 0x41;
+  c -= 0x20;
+  msb = 1 << (height - 1);
+
   // some math with pointers... don't try this at home ;-)
   prog_uint8_t *addr = font + c * width;
   prog_uint16_t *waddr = wfont + c * width;
-  for (register char col = 0; col < width; col++) {
+
+  for (col = 0; col < width; col++) {
     dots = (height > 8) ? pgm_read_word_near(waddr + col) : pgm_read_byte_near(addr + col);
-    if (attr & PROPORTIONAL) {
-      if (dots) 
-      {
-        for (register char row = 0; row < height; row++) {
-          if (dots & (msb>>row)) {
-            plot(x+col, y+row, (color & MULTICOLOR) ? random(1,4) : color);
-          } else {
-            plot(x+col, y+row, BLACK);
-          }
-        }
+    for (row = 0; row < height; row++) {
+      if (dots & (msb >> row)) {
+        plot(x + col, y + row, (color & MULTICOLOR) ? _rnd(1, 4) : color);
       } else {
-        width--;
-        x--;
-      }
-    } else {
-      for (register char row = 0; row < height; row++) {
-        if (dots & (msb>>row)) {
-          plot(x+col, y+row, (color & MULTICOLOR) ? random(1,4) : color);
-        } else {
-          plot(x+col, y+row, BLACK);
-        }
+        plot(x + col, y + row, bgcolor);
       }
     }
   }
-  if (attr & PROPORTIONAL)
-  { 
-    // TODO!
-  } else {
-    for (register char row = 0; row < height; row++) {
-      plot(x + width, y+row, BLACK);
-    }
-  }
-  return width;
+  return ++width;
 }
 
 /* put a bitmap in the coordinates x, y */
 
-void ht1632c::putbitmap(int x, int y, uint16_t *bitmap, byte w, byte h, byte color)
+void ht1632c::putbitmap(int x, int y, uint16_t *bitmap, uint8_t w, uint8_t h, uint8_t color)
 {
+  uint16_t dots, msb;
+  char col, row;
+
   if (x < -w || x > x_max + w || y < -h || y > y_max + h)
     return;
-  word msb = pow2(w-1);
-  for (byte row = 0; row < h; row++)
+
+  msb = 1 << (w - 1);
+  for (row = 0; row < h; row++)
   {
-    uint16_t dots = bitmap[row];
+    dots = bitmap[row];
     if (dots && color)
-      for (byte col = 0; col < w; col++)
+      for (uint8_t col = 0; col < w; col++)
       {
-	if (dots & (msb>>col))
-	  plot(x+col, y+row, color);
+	if (dots & (msb >> col))
+	  plot(x + col, y + row, color);
 	else
-	  plot(x+col, y+row, BLACK);
+	  plot(x + col, y + row, BLACK);
       }
   }
 }
 
 /* text only scrolling functions */
 
-void ht1632c::hscrolltext(int y, char *text, byte color, int delaytime, int times, byte dir)
+void ht1632c::hscrolltext(int y, char *text, uint8_t color, int delaytime, int times, uint8_t dir, uint8_t attr, uint8_t bgcolor)
 {
-  byte showcolor;
-  int x, len = strlen(text);
-  register byte width = font_width;
+  uint8_t showcolor;
+  int i, x, offs, len = strlen(text);
+  uint8_t width = font_width;
+  uint8_t height = font_height;
   width++;
-  
+
   while (times) {
     for ((dir) ? x = - (len * width) : x = x_max; (dir) ? x <= x_max : x > - (len * width); (dir) ? x++ : x--)
     {
-      for (int i = 0; i < len; i++)
+      for (i = 0; i < len; i++)
       {
-        showcolor = (color & RANDOMCOLOR) ? random(1,4) : color;
+        offs = width * i;
+        (dir) ? offs-- : offs++;
+        putchar(x + offs,  y, text[i], bgcolor, attr, bgcolor);
+      }
+      for (i = 0; i < len; i++)
+      {
+        showcolor = (color & RANDOMCOLOR) ? _rnd(1, 4) : color;
         showcolor = ((color & BLINK) && (x & 2)) ? BLACK : (showcolor & ~BLINK);
-        putchar(x + width * i,  y, text[i], showcolor);
+        offs = width * i;
+        putchar(x + offs,  y, text[i], showcolor, attr, bgcolor);
       }
       sendframe();
       delay(delaytime);
@@ -322,24 +452,30 @@ void ht1632c::hscrolltext(int y, char *text, byte color, int delaytime, int time
   }
 }
 
-void ht1632c::vscrolltext(int x, char *text, byte color, int delaytime, int times, byte dir)
+void ht1632c::vscrolltext(int x, char *text, uint8_t color, int delaytime, int times, uint8_t dir, uint8_t attr, uint8_t bgcolor)
 {
-  byte showcolor;
-  int y, len = strlen(text);
-  register byte width = font_width;
+  uint8_t showcolor;
+  int i, y, voffs, len = strlen(text);
+  uint8_t offs;
+  uint8_t width = font_width;
+  uint8_t height = font_height;
   width++;
 
   while (times) {
     for ((dir) ? y = - font_height : y = y_max + 1; (dir) ? y <= y_max + 1 : y > - font_height; (dir) ? y++ : y--)
     {
-      for (int i = 0; i < len; i++)
+      for (i = 0; i < len; i++)
       {
-        showcolor = (color & RANDOMCOLOR) ? random(1,4) : color;
-        showcolor = ((color & BLINK) && (y & 2)) ? BLACK : (showcolor & ~BLINK);
-        putchar(x + font_width * i,  y, text[i], showcolor);
+        offs = width * i;
+        voffs = (dir) ? -1 : 1;
+        putchar(x + offs,  y + voffs, text[i], bgcolor, attr, bgcolor);
       }
-      // quick and dirty fix to avoid wakes
-      line (x, y - 1, x + font_width * len, y - 1, BLACK);
+      for (i = 0; i < len; i++)
+      {
+        showcolor = (color & RANDOMCOLOR) ? _rnd(1, 4) : color;
+        showcolor = ((color & BLINK) && (y & 2)) ? BLACK : (showcolor & ~BLINK);
+        putchar(x + width * i,  y, text[i], showcolor, attr, bgcolor);
+      }
       sendframe();
       delay(delaytime);
     }
@@ -349,7 +485,7 @@ void ht1632c::vscrolltext(int x, char *text, byte color, int delaytime, int time
 
 /* choose/change font to use (for next putchar) */
 
-void ht1632c::setfont(byte userfont)
+void ht1632c::setfont(uint8_t userfont)
 {
   switch(userfont) {
 
@@ -514,27 +650,34 @@ void ht1632c::setfont(byte userfont)
 	font_height = 16;
 	break;
 #endif
+#ifdef FONT_8x13BK
+    case FONT_8x13BK:
+	wfont = (prog_uint16_t *) &font_8x13bk[0];
+	font_width = 8;
+	font_height = 13;
+	break;
+#endif
   }
 }
 
 /* graphic primitives based on Bresenham's algorithms */
 
-void ht1632c::line(int x0, int y0, int x1, int y1, byte color)
+void ht1632c::line(int x0, int y0, int x1, int y1, uint8_t color)
 {
-  int dx =  abs(x1-x0), sx = x0<x1 ? 1 : -1;
-  int dy = -abs(y1-y0), sy = y0<y1 ? 1 : -1; 
-  int err = dx+dy, e2; /* error value e_xy */
+  int dx =  abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1; 
+  int err = dx + dy, e2; /* error value e_xy */
 
   for(;;) {
     plot(x0, y0, color);
     if (x0 == x1 && y0 == y1) break;
-    e2 = 2*err;
+    e2 = 2 * err;
     if (e2 >= dy) { err += dy; x0 += sx; } /* e_xy+e_x > 0 */
     if (e2 <= dx) { err += dx; y0 += sy; } /* e_xy+e_y < 0 */
   }
 }
 
-void ht1632c::rect(int x0, int y0, int x1, int y1, byte color)
+void ht1632c::rect(int x0, int y0, int x1, int y1, uint8_t color)
 {
   line(x0, y0, x0, y1, color); /* left line   */
   line(x1, y0, x1, y1, color); /* right line  */
@@ -542,9 +685,9 @@ void ht1632c::rect(int x0, int y0, int x1, int y1, byte color)
   line(x0, y1, x1, y1, color); /* bottom line */
 }
 
-void ht1632c::circle(int xm, int ym, int r, byte color)
+void ht1632c::circle(int xm, int ym, int r, uint8_t color)
 {
-  int x = -r, y = 0, err = 2-2*r; /* II. Quadrant */ 
+  int x = -r, y = 0, err = 2 - 2 * r; /* II. Quadrant */ 
   do {
     plot(xm - x, ym + y, color); /*   I. Quadrant */
     plot(xm - y, ym - x, color); /*  II. Quadrant */
@@ -556,7 +699,7 @@ void ht1632c::circle(int xm, int ym, int r, byte color)
   } while (x < 0);
 }
 
-void ht1632c::ellipse(int x0, int y0, int x1, int y1, byte color)
+void ht1632c::ellipse(int x0, int y0, int x1, int y1, uint8_t color)
 {
   int a = abs(x1 - x0), b = abs(y1 - y0), b1 = b & 1; /* values of diameter */
   long dx = 4 * (1 - a) * b * b, dy = 4 * (b1 + 1) * a * a; /* error increment */
@@ -585,9 +728,9 @@ void ht1632c::ellipse(int x0, int y0, int x1, int y1, byte color)
   }
 }
 
-void ht1632c::bezier(int x0, int y0, int x1, int y1, int x2, int y2, byte color)
+void ht1632c::bezier(int x0, int y0, int x1, int y1, int x2, int y2, uint8_t color)
 {
-  int sx = x0 < x2 ? 1 : -1, sy = y0<y2 ? 1 : -1; /* step direction */
+  int sx = x0 < x2 ? 1 : -1, sy = y0 < y2 ? 1 : -1; /* step direction */
   int cur = sx * sy * ((x0 - x1) * (y2 - y1) - (x2 - x1) * (y0 - y1)); /* curvature */
   int x = x0 - 2 * x1 + x2, y = y0 - 2 * y1 + y2, xy = 2 * x * y * sx * sy;
                                 /* compute error increments of P0 */
@@ -598,7 +741,7 @@ void ht1632c::bezier(int x0, int y0, int x1, int y1, int x2, int y2, byte color)
   long ey = (1 - 2 * abs(y2 - y1)) * x * x + abs(x2 - x1) * xy - 2 * cur * abs(x0 - x2);
 
   if (cur == 0) { line(x0, y0, x2, y2, color); return; } /* straight line */
-     
+
   x *= 2 * x; y *= 2 * y;
   if (cur < 0) {                             /* negated curvature */
     x = -x; dx = -dx; ex = -ex; xy = -xy;
@@ -628,94 +771,117 @@ void ht1632c::bezier(int x0, int y0, int x1, int y1, int x2, int y2, byte color)
 
 /* returns the pixel value (RED, GREEN, ORANGE or 0/BLACK) of x, y coordinates */
 
-byte ht1632c::getpixel(byte x, byte y)
+uint8_t ht1632c::getpixel(uint8_t x, uint8_t y)
 {
-  word addr = (x & 63) + 8*(y & ~7);
-  byte g = framebuffer[addr];
-  byte r = framebuffer[addr+128];
-  byte valbit = 1 << (7 - y & 7);
-  return (g & valbit) ? GREEN : BLACK | (r & valbit) ? RED : BLACK;
+  uint8_t g, r, val;
+  uint16_t addr, csm;
+
+#ifdef USE_NLFB
+  addr = (x & 31) + ((x & ~31) << 1) + ((y & ~7) << 2);
+#else
+  csm = cs_max;
+  addr = x + csm * (y & ~7);
+#endif
+  val = 1 << (7 - y & 7);
+  g = g_fb[addr];
+  r = r_fb[addr];
+  return ((g & val) ? GREEN : BLACK) | ((r & val) ? RED : BLACK);
 }
 
 /* boundary flood fill with the seed in x, y coordinates */
 
-void ht1632c::fill_r(byte x, byte y, byte color)
+void ht1632c::_fill_r(uint8_t x, uint8_t y, uint8_t color)
 {
   if (x > x_max) return;
   if (y > y_max) return;
-  if(!getpixel(x, y))
+  if (!getpixel(x, y))
   {
     plot(x, y, color);
-    fill_r(++x, y ,color);
-    x = x - 1;
-    if (x > x_max) return;
-    fill_r(x, y-1, color);
-    fill_r(x, y+1, color);
+    _fill_r(++x, y ,color);
+    x--;
+    _fill_r(x, y - 1, color);
+    _fill_r(x, y + 1, color);
   }
 }
 
-void ht1632c::fill_l(byte x, byte y, byte color)
+void ht1632c::_fill_l(uint8_t x, uint8_t y, uint8_t color)
 {
   if (x > x_max) return;
   if (y > y_max) return;
-  if(!getpixel(x, y))
+  if (!getpixel(x, y))
   {
     plot(x, y, color);
-    fill_l(--x, y, color);
-    x = x + 1 ;
-    fill_l(x, y-1, color);
-    fill_l(x, y+1, color);
+    _fill_l(--x, y, color);
+    x++;
+    _fill_l(x, y - 1, color);
+    _fill_l(x, y + 1, color);
   }
 }
 
-void ht1632c::fill(byte x, byte y, byte color)
+void ht1632c::fill(uint8_t x, uint8_t y, uint8_t color)
 {
-  fill_r(x, y, color);
-  fill_l(x-1, y, color);
+  _fill_r(x, y, color);
+  _fill_l(x - 1, y, color);
 }
 
+/* Print class extension: TBD */
+
+#ifdef PRINT_NEW
 size_t ht1632c::write(uint8_t chr)
+#else
+void ht1632c::write(uint8_t chr)
+#endif
 {
-  byte x, y;
+  uint8_t x, y;
   if (chr == '\n') {
     //y_cur += font_height;
   } else {
-    //x_cur += putchar(x_cur, y_cur, chr, GREEN, PROPORTIONAL);
+    //x_cur += putchar(x_cur, y_cur, chr, GREEN);
     //x_cur = 0;
     //y_cur = 0;
   }
   //sendframe();
+#ifdef PRINT_NEW
+  return 1;
+#endif
 }
 
+#ifdef PRINT_NEW
+size_t ht1632c::write(const char *str)
+#else
 void ht1632c::write(const char *str)
+#endif
 {
-  byte x, y;
-  byte len = strlen(str);
+  uint8_t x, y;
+  uint8_t len = strlen(str);
   if (x_cur + font_width <= x_max)
-    for (byte i = 0; i < len; i++)
+    for (uint8_t i = 0; i < len; i++)
     {
       if (str[i] == '\n') {
         y_cur += font_height;
         x_cur = 0;
         if (y_cur > y_max) break;
       } else {
-        x_cur += putchar(x_cur, y_cur, str[i], GREEN, PROPORTIONAL);
+        x_cur += putchar(x_cur, y_cur, str[i], GREEN);
         if (x_cur + font_width > x_max) break;
       }
     }
   //x_cur = 0;
   //y_cur = 0;
   sendframe();
+#ifdef PRINT_NEW
+  return len;
+#endif
 }
 
 /* calculate frames per second speed, for benchmark */
 
 void ht1632c::profile() {
-  const byte frame_interval = 50;
+  const uint8_t frame_interval = 50;
   static unsigned long last_micros = 0;
-  static byte frames = 0;
+  static uint8_t frames = 0;
   if (++frames == frame_interval) {
-    fps = (frame_interval * 1000000) / (micros() - last_micros);
+    fps = (frame_interval * 1000000L) / (micros() - last_micros);
     frames = 0;
     last_micros = micros();
   }

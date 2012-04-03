@@ -9,6 +9,7 @@ data/COPYING.txt.i
 data/keywords.txt.i
 data/font3.h.i
 data/examples/fill/fill.pde.i
+data/font_koi8.h.i
 data/examples/line/line.pde.i
 data/font.h.i
 data/examples/demo/demo.pde.i
