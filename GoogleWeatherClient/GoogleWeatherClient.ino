@@ -115,6 +115,7 @@ void setup() {
 
   // initialize serial:
   Serial.begin(9600);
+  Serial.println("Google Weather client starting...");
   // attempt a DHCP connection:
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
