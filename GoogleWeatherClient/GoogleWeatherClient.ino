@@ -2,7 +2,7 @@
   Google Wheater Client with Strings
  
  This sketch connects to Google using an Ethernet shield. It parses the XML
- returned, and looks for wheater conditions
+ returned, and looks for wheater conditions.
  
  You can use the Arduino Ethernet shield, or the Adafruit Ethernet shield, 
  either one will work, as long as it's got a Wiznet Ethernet module on board.
@@ -17,13 +17,13 @@
  * Ethernet shield attached to pins 10, 11, 12, 13
  
  based on Twitter Client example by Tom Igoe
- modified 21 April 2012
+ modified 21 May 2012
  by Baptiste Gaultier
  
  This code is in the public domain.
  
  */
- 
+
 #include <SPI.h>
 #include <Ethernet.h>
 
@@ -40,7 +40,7 @@ IPAddress subnet(255, 255, 0, 0);
 // initialize the library instance:
 EthernetClient client;
 
-const int requestInterval = 5000;  // delay between requests
+const int requestInterval = 10000;  // delay between requests
 
 char serverName[] = "google.com";  // google URL
 
@@ -49,17 +49,22 @@ long lastAttemptTime = 0;            // last time you connected to the server, i
 
 char buffer[24];                    // buffer used for type convertion
 byte icon;                          // byte to hold the icon
-byte humidity;                      // byte to hold the humidity
 byte temperature;                   // byte to hold the temperature
 
 
 String currentLine = "";            // string to hold the text from server
-String humidityString = "";         // string to hold the humidity
 String temperatureString = "";      // string to hold the temperature
-String iconString = "";             // string to hold the icon
-boolean readingHumidity = false;    // if you're currently reading the humidity
+String iconString = "";             // string to hold the icon for today
+String lowTemperatureString = "";   // string to hold the lowest temperature for tomorrow
+String hiTemperatureString = "";    // string to hold the highest temperature for tomorrow
+String tomorrowIconString = "";     // string to hold the icon for tomorrow
+
 boolean readingTemperature = false; // if you're currently reading the temperature
 boolean readingIcon = false;        // if you're currently reading the icon
+boolean forecast = false;
+boolean readingLowTemperature = false;    // if you're currently reading the humidity
+boolean readingHiTemperature = false; // if you're currently reading the temperature
+boolean readingTomorrowIcon = false;        // if you're currently reading the icon
 
 prog_char weatherCondition_0[] PROGMEM = "/sunny.gif\"/";
 prog_char weatherCondition_1[] PROGMEM = "/mostly_sunny.gif\"/";
@@ -108,10 +113,12 @@ PROGMEM const char *weatherConditions[] =
 
 void setup() {
   // reserve space for the strings:
-  currentLine.reserve(256);
-  temperatureString.reserve(50);
-  humidityString.reserve(50);
-  iconString.reserve(50);
+  currentLine.reserve(128);
+  temperatureString.reserve(16);
+  iconString.reserve(16);
+  lowTemperatureString.reserve(16);
+  hiTemperatureString.reserve(16);
+  tomorrowIconString.reserve(16);
 
   // initialize serial:
   Serial.begin(9600);
@@ -121,9 +128,18 @@ void setup() {
     // if DHCP fails, start with a hard-coded address:
     Ethernet.begin(mac, ip);
   }
-
-  Serial.println("Google Weather client starting...");
-  // connect to Twitter:
+  
+  // print your local IP address:
+  Serial.print("my IP address: ");
+  ip = Ethernet.localIP();
+  for (byte thisByte = 0; thisByte < 4; thisByte++) {
+    // print the value of each byte of the IP address:
+    Serial.print(ip[thisByte], DEC);
+    Serial.print("."); 
+  }
+  Serial.println();
+  
+  // connect to Google:
   connectToServer();
 }
 
@@ -142,7 +158,8 @@ void loop()
       // if you get a newline, clear the line:
       if (inChar == '\n') {
         currentLine = "";
-      } 
+      }
+
       // if the current line ends with <temperature_c, it will
       // be followed by the temperature:
       if ( currentLine.endsWith("<temp_c data=\"")) {
@@ -151,20 +168,37 @@ void loop()
         temperatureString = "";
       }
 
-      // if the current line ends with <humidity data, it will
-      // be followed by the humidity:
-      if ( currentLine.endsWith("<humidity data=\"Humidity: ")) {
-        // humidity is beginning. Clear the humidity string:
-        readingHumidity = true; 
-        humidityString = "";
-      }
-      
       // if the current line ends with <icon data, it will
       // be followed by the icon:
       if ( currentLine.endsWith("<icon data=\"/ig/images/weather/")) {
-        // humidity is beginning. Clear the humidity string:
+        // icon is beginning. Clear the icon string:
         readingIcon = true; 
         iconString = "";
+      }
+
+      // if the current line ends with <low data, it will
+      // be followed by the temperature:
+      if ( currentLine.endsWith("<low data=\"")) {
+        // low temperature is beginning. Clear the low temperature string:
+        readingLowTemperature = true;
+        forecast = true;
+        lowTemperatureString = "";
+      }
+
+      // if the current line ends with <high data, it will
+      // be followed by the temperature:
+      if ( currentLine.endsWith("<high data=\"")) {
+        // hig temperature is beginning. Clear the high temperature string:
+        readingHiTemperature = true; 
+        hiTemperatureString = "";
+      }
+
+      // if the current line ends with <icon data, it will
+      // be followed by the icon of tomorrow :
+      if ( currentLine.endsWith("<icon data=\"/ig/images/weather/") && forecast ) {
+        // icon is beginning. Clear the icon string:
+        readingTomorrowIcon = true; 
+        tomorrowIconString = "";
       }
 
       // if you're currently reading the bytes of a temperature,
@@ -172,7 +206,7 @@ void loop()
       if (readingTemperature)
       {
         if (inChar != '>')
-        {
+       {
           temperatureString += inChar;
         } 
         else {
@@ -181,21 +215,7 @@ void loop()
           readingTemperature = false;
         }
       }
-      // if you're currently reading the bytes of a humidity,
-      // add them to the humidity String:
-      if (readingHumidity)
-      {
-        if (inChar != '>')
-        {
-          humidityString += inChar;
-        } 
-        else {
-          // if you got a ">" character,
-          // you've reached the end of the humidity:
-          readingHumidity = false;
-        }
-      }
-      
+
       // if you're currently reading the bytes of a icon,
       // add them to the icon String:
       if (readingIcon)
@@ -208,34 +228,89 @@ void loop()
           // if you got a ">" character,
           // you've reached the end of the icon:
           readingIcon = false;
-          Serial.print("icon : ");
-          icon = iconStringToIcon(iconString);
-          Serial.println(icon);
+        }
+      }
+      
+      // if you're currently reading the bytes of a temperature,
+      // add them to the low temperature String:
+      if (readingLowTemperature)
+      {
+        if (inChar != '>')
+       {
+          lowTemperatureString += inChar;
+        } 
+        else {
+          // if you got a ">" character,
+          // you've reached the end of the low temperature:
+          readingLowTemperature = false;
+        }
+      }
+      
+      // if you're currently reading the bytes of a temperature,
+      // add them to the high temperature String:
+      if (readingHiTemperature)
+      {
+        if (inChar != '>')
+       {
+          hiTemperatureString += inChar;
+        } 
+        else {
+          // if you got a ">" character,
+          // you've reached the end of the high temperature:
+          readingHiTemperature = false;
+        }
+      }
+      
+      // if you're currently reading the bytes of a icon,
+      // add them to the tomorrow icon String:
+      if (readingTomorrowIcon)
+      {
+        if (inChar != '>')
+        {
+          tomorrowIconString += inChar;
+        } 
+        else {
+          // if you got a ">" character,
+          // you've reached the end of the tomorrow icon:
+          readingTomorrowIcon = false;
           // close the connection to the server:
           client.stop();
+          Serial.println("today");
+          Serial.print("  icon : ");
+          icon = iconStringToIcon(iconString);
+          Serial.println(icon);
           // data convertion
           buffer[0] = temperatureString.charAt(1);
           buffer[1] = temperatureString.charAt(2);
           buffer[3] = '\0';
           temperature = atoi(buffer);
-          Serial.print("temperature : ");
+          Serial.print("  temperature : ");
           Serial.print(temperature);
           Serial.println(" degrees");
-          
-          buffer[0] = humidityString.charAt(1);
-          buffer[1] = humidityString.charAt(2);
+          Serial.println("tomorrow");
+          buffer[0] = lowTemperatureString.charAt(1);
+          buffer[1] = lowTemperatureString.charAt(2);
           buffer[3] = '\0';
-          humidity = atoi(buffer);
-          Serial.print("humidity : ");
-          Serial.print(humidity);
-          Serial.println("%");
-          
+          temperature = atoi(buffer);
+          Serial.print("  low : ");
+          Serial.print(temperature);
+          Serial.println(" degrees");
+          buffer[0] = hiTemperatureString.charAt(1);
+          buffer[1] = hiTemperatureString.charAt(2);
+          buffer[3] = '\0';
+          temperature = atoi(buffer);
+          Serial.print("  high : ");
+          Serial.print(temperature);
+          Serial.println(" degrees");
+          Serial.print("  icon : ");
+          icon = iconStringToIcon(tomorrowIconString);
+          Serial.println(icon);
         }
       }
     }   
   }
   else if (millis() - lastAttemptTime > requestInterval) {
-    // if you're not connected, and two minutes have passed since
+    // if you're not connected, and ten seconds have passed since
     // your last connection, then attempt to connect again:
     connectToServer();
   }
@@ -277,3 +352,4 @@ byte iconStringToIcon(String iconString)
     }
   }
 }  
+
