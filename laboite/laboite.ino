@@ -56,7 +56,7 @@ int timetable[HOURS][MAX_STOPS] =
   {27,57}
 };
 
-// initialize the dotmatrix with the numbers of the interface pins
+// initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
 TKLightSensor ldr(I0);    // creating the object 'ldr' that belongs to the 'TKLightSensor' class
