@@ -17,6 +17,8 @@
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
+ modified 9 Apr 2012
+ by Baptiste Gaultier
  
  */
  
@@ -25,10 +27,9 @@
 #include <Ethernet.h>
 #include <ht1632c.h>
 #include <TinkerKit.h>
-#define HOURS 24
 #define MAX_STOPS 9
 
-int timetable[HOURS][MAX_STOPS] =
+int timetable[][MAX_STOPS] =
 {
   {27},
   {},
@@ -59,11 +60,9 @@ int timetable[HOURS][MAX_STOPS] =
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
-TKLightSensor ldr(I0);    // creating the object 'ldr' that belongs to the 'TKLightSensor' class
-
-TKThermistor therm(I1);   // creating the object 'therm' that belongs to the 'TKThermistor' class 
-
-TKTouchSensor touch(I2);  // creating the object 'touch' that belongs to the 'TKTouchSensor' class
+TKLightSensor ldr(I0);    // ldr used to adjust dotmatrix brightness
+TKThermistor therm(I1);   // thermistor used for indoor temperature
+TKTouchSensor touch(I2);  // button used to start/stop scrolling
 
 boolean scrolling = true; // value modified when touch sensor pressed
 
@@ -128,7 +127,7 @@ void setup() {
   dotmatrix.pwm(pwm);
   
   // display a welcome message:
-  //Serial.println("Weather Station v0.7 starting...");
+  //Serial.println("Weather Station v0.8 starting...");
   
   // attempt a DHCP connection:
   if (!Ethernet.begin(mac)) {
@@ -137,15 +136,8 @@ void setup() {
   }
   
   // print your local IP address:
-  /*Serial.print("My IP address: ");
-  ip = Ethernet.localIP();
-  for (byte thisByte = 0; thisByte < 4; thisByte++)
-  {
-    // print the value of each byte of the IP address:
-    Serial.print(ip[thisByte], DEC);
-    Serial.print("."); 
-  }
-  Serial.println();*/
+  //Serial.print("My address:");
+  //Serial.println(Ethernet.localIP());
   // connect to API server:
   connectToServer();
 }
