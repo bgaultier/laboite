@@ -9,6 +9,7 @@
  * Automatic time (NTP)
  * Weather forecast icons (sunny, cloudy, rain, snow, fog)
  * Next bus arrival information from Keolis gtfs
+ * Energy history charts from past 7 days (emoncms)
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
