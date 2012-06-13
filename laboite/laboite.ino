@@ -1,6 +1,6 @@
 /*
 
- laboite v0.8
+ laboite v2.0
  
  Key Features:
  * Indoor Temperature
@@ -27,41 +27,42 @@
 #include <Ethernet.h>
 #include <ht1632c.h>
 #include <TinkerKit.h>
-#define MAX_STOPS 9
 
-int timetable[][MAX_STOPS] =
+#define MAX_STOPS 8
+
+int timetable[24][MAX_STOPS] =
 {
-  {27},
   {},
   {},
   {},
   {},
-  {40},
-  {20, 57},
-  {8, 18, 29, 37, 43, 50, 59},
-  {8, 17, 26, 34, 42, 49, 57},
-  {4, 11, 18, 26, 34, 42, 49, 56},
-  {4, 11, 20, 29, 38, 47, 56},
-  {5, 14, 22, 30, 37, 45, 54},
-  {4, 14, 23, 32, 42, 51},
-  {0, 8, 17, 26, 34, 43, 52},
-  {0, 9, 18, 27, 36, 44, 53},
-  {3, 12, 21, 29, 38, 48, 57},
-  {6, 16, 25, 34, 43, 52},
-  {1, 8, 14, 22, 30, 38, 46, 54},
-  {2, 11, 20, 29, 37, 44, 50, 56},
-  {3, 10, 18, 25, 33, 39, 47, 57},
-  {7, 17, 27, 37, 47, 57},
-  {20, 52},
-  {22, 52},
-  {27,57}
+  {},
+  {31},
+  {11, 29, 43},
+  {3, 16, 23, 30, 37, 44, 52, 58},
+  {06, 13, 21, 29, 37, 46, 55},
+  {4, 12, 21, 30, 39, 48, 56},
+  {5, 14, 22, 30, 38, 47, 56},
+  {5, 14, 23, 32, 40, 48, 56},
+  {4, 13, 22, 31, 41, 50, 59},
+  {9, 18, 27, 36, 45, 54},
+  {3, 12, 21, 28, 37, 46, 54},
+  {3, 12, 21, 30, 39, 48, 56},
+  {4, 9, 16, 24, 32, 40, 48, 56},
+  {4, 13, 22, 31, 37, 43, 51},
+  {0, 8, 16, 24, 32, 40, 48, 56},
+  {4, 13, 23, 33, 43, 53},
+  {4, 15, 30, 45},
+  {0, 14, 29, 44, 59},
+  {19, 34, 49},
+  {4, 19, 34, 54}
 };
 
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
 TKLightSensor ldr(I0);    // ldr used to adjust dotmatrix brightness
-TKThermistor therm(I1);   // thermistor used for indoor temperature
+//TKThermistor therm(I1);   // thermistor used for indoor temperature
 TKTouchSensor touch(I2);  // button used to start/stop scrolling
 
 boolean scrolling = true; // value modified when touch sensor pressed
@@ -69,14 +70,14 @@ boolean scrolling = true; // value modified when touch sensor pressed
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
 
-char hour [3];
+char hour[3];
 char minutes[3];
 char nextBusString[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
 char indoorTemperatureString[3];
-byte indoorTemperature;            // temperature readings are returned in float format
+byte indoorTemperature;
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -84,23 +85,51 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
-IPAddress ip(169, 254, 0, 64);
-IPAddress subnet(255, 255, 0, 0);
+//IPAddress ip(169, 254, 0, 64);
+IPAddress ip(10, 35, 128, 111);
+IPAddress subnet(255, 255, 255, 0);
 
 // initialize the library instance:
 EthernetClient client;
 
 const int requestInterval = 10000;  // delay between requests
 
-//char serverName[] = "api.baptistegaultier.fr"; // Your favorite weather server
-IPAddress server(82, 165, 110, 226);             // Your favorite weather server IP address
+IPAddress server(192, 108, 119 ,4);              // Your favorite api server IP address
 
 boolean requested;                   // whether you've made a request since connecting
 long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
 
+// Variables used to parse the XML from emoncms
+
 String currentLine = "";             // string to hold the text from server
-String data = "";                    // string to hold the data
-boolean reading = false;             // if you're currently reading the data
+String content = "";
+char temperature[3];
+char low[3];
+char high[3];
+
+boolean readingTime = false;
+boolean readingTodayIcon = false;
+boolean readingTemperature = false;
+boolean readingTomorrowIcon = false;
+boolean readingLow = false;
+boolean readingHigh = false;
+boolean readingInstantaneous = false;
+boolean readingDay0 = false;
+boolean readingDay1 = false;
+boolean readingDay2 = false;
+boolean readingDay3 = false;
+boolean readingDay4 = false;
+boolean readingDay5 = false;
+boolean readingDay6 = false;
+
+int day0;
+int day1;
+int day2;
+int day3;
+int day4;
+int day5;
+int day6;
+
 
 // weather forecast sprites:
 uint16_t sprites[5][9] =
@@ -117,17 +146,19 @@ uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a
 
 void setup() {
   // reserve space for the strings:
-  currentLine.reserve(64);
-  data.reserve(16);
+  currentLine.reserve(128);
+  content.reserve(8);
+  
+  // Dotmatrix brightness
+  dotmatrix.pwm(8);
   
   // initialize serial:
   //Serial.begin(9600);
   // initialize dotmatrix:
   dotmatrix.clear();
-  dotmatrix.pwm(pwm);
   
   // display a welcome message:
-  //Serial.println("Weather Station v0.8 starting...");
+  //Serial.println("laboite v2.0 starting...");
   
   // attempt a DHCP connection:
   if (!Ethernet.begin(mac)) {
@@ -136,8 +167,8 @@ void setup() {
   }
   
   // print your local IP address:
-  //Serial.print("My address:");
-  //Serial.println(Ethernet.localIP());
+  /*Serial.print("My address:");
+  Serial.println(Ethernet.localIP());*/
   // connect to API server:
   connectToServer();
 }
@@ -157,56 +188,242 @@ void loop()
       // if you get a newline, clear the line:
       if (inChar == '\n') {
         currentLine = "";
-      } 
-      // if the current line ends with <text>, it will
-      // be followed by the data:
-      if ( currentLine.endsWith("data:")) {
-        // data is beginning. Clear the data string:
-        reading = true; 
-        data = "";
       }
-      // if you're currently reading the bytes of a data,
-      // add them to the data String:
-      if (reading) {
-        if (inChar != ';') {
-          data += inChar;
+      
+      if ( currentLine.endsWith("<time>")) {
+        readingTime = true; 
+        content = "";
+      }
+
+      if (readingTime) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
         } 
         else {
-          // if you got a ";" character,
-          // you've reached the end of the line:
-          reading = false;
+          readingTime = false;
+          hour[0] = content.charAt(0);
+          hour[1] = content.charAt(1);
+          hour[3] = '\0';
+          
+          minutes[0] = content.charAt(3);
+          minutes[1] = content.charAt(4);
+          minutes[3] = '\0';
+        }
+      }
+      
+      if ( currentLine.endsWith("<today>")) {
+        readingTodayIcon = true; 
+        content = "";
+      }
+
+      if (readingTodayIcon) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingTodayIcon = false;
+          todayIcon = stringToInt(content);
+        }
+      }
+      
+      if ( currentLine.endsWith("<temperature>")) {
+        readingTemperature = true; 
+        content = "";
+      }
+
+      if (readingTemperature) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingTemperature = false;
+          temperature[0] = content.charAt(0);
+          temperature[1] = content.charAt(1);
+          temperature[2] = '\0';
+        }
+      }
+      
+      if (currentLine.endsWith("<tomorrow>")) {
+        readingTomorrowIcon = true; 
+        content = "";
+      }
+
+      if (readingTomorrowIcon) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingTomorrowIcon = false;
+          tomorrowIcon = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<low>")) {
+        readingLow = true; 
+        content = "";
+      }
+
+      if (readingLow) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingLow = false;
+          low[0] = content.charAt(0);
+          low[1] = content.charAt(1);
+          low[2] = '\0';
+        }
+      }
+      
+      if (currentLine.endsWith("<high>")) {
+        readingHigh = true; 
+        content = "";
+      }
+
+      if (readingHigh) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingHigh = false;
+          high[0] = content.charAt(0);
+          high[1] = content.charAt(1);
+          high[2] = '\0';
+        }
+      }
+
+      if ( currentLine.endsWith("<day0>")) {
+        readingDay0 = true; 
+        content = "";
+      }
+
+      if (readingDay0) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay0 = false;
+          day0 = stringToInt(content);
+        }
+      }
+
+      if ( currentLine.endsWith("<day1>")) {
+        readingDay1 = true; 
+        content = "";
+      }
+
+      if (readingDay1) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay1 = false;
+          day1 = stringToInt(content);
+        }
+      }
+
+      if ( currentLine.endsWith("<day2>")) {
+        readingDay2 = true; 
+        content = "";
+      }
+
+      if (readingDay2) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay2 = false;
+          day2 = stringToInt(content);
+        }
+      }
+
+      if ( currentLine.endsWith("<day3>")) {
+        readingDay3 = true; 
+        content = "";
+      }
+
+      if (readingDay3) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay3 = false;
+          day3 = stringToInt(content);
+        }
+      }
+
+      if ( currentLine.endsWith("<day4>")) {
+        readingDay4 = true; 
+        content = "";
+      }
+
+      if (readingDay4) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay4 = false;
+          day4 = stringToInt(content);
+        }
+      }
+
+      if ( currentLine.endsWith("<day5>")) {
+        readingDay5 = true; 
+        content = "";
+      }
+
+      if (readingDay5) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          readingDay5 = false;
+          day5 = stringToInt(content);
+        }
+      }
+      if ( currentLine.endsWith("<day6>")) {
+        readingDay6 = true; 
+        content = "";
+      }
+
+      if (readingDay6) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        } 
+        else {
+          // if you got a ">" character, you've
+          // reached the end of the XML
+          readingDay6 = false;
+          day6 = stringToInt(content);
           
           dotmatrix.setfont(FONT_5x7);
           
-          dotmatrix.putchar(5, 0, data.charAt(1), GREEN);
-          dotmatrix.putchar(10, 0, data.charAt(2), GREEN);
+          dotmatrix.putchar(5, 0, hour[0], GREEN);
+          dotmatrix.putchar(10, 0, hour[1], GREEN);
           dotmatrix.putchar(14, 0, ':', GREEN);
-          dotmatrix.putchar(18, 0, data.charAt(4), GREEN);
-          dotmatrix.putchar(23, 0, data.charAt(5), GREEN);
+          dotmatrix.putchar(18, 0, minutes[0], GREEN);
+          dotmatrix.putchar(23, 0, minutes[1], GREEN);
           
           dotmatrix.sendframe();
           
           if(scrolling)
           {
-            hour[0] = data.charAt(1);
-            hour[1] = data.charAt(2);
-            hour[3] = '\0';
-            
-            minutes[0] = data.charAt(4);
-            minutes[1] = data.charAt(5);
-            minutes[3] = '\0';
-            
-            indoorTemperatureString[0] = data.charAt(7);
-            indoorTemperatureString[1] = '\0';
-            todayIcon = atoi(indoorTemperatureString);
-            
-            indoorTemperatureString[0] = data.charAt(12);
-            indoorTemperatureString[1] = '\0';
-            tomorrowIcon = atoi(indoorTemperatureString);
-            
             // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-            indoorTemperature = therm.getCelsius();
-            itoa (indoorTemperature, indoorTemperatureString, 10);
+            //indoorTemperature = therm.getCelsius();
+            //itoa (indoorTemperature, indoorTemperatureString, 10);
             
             for (int x = 32; x > -64; x--)
             {
@@ -230,19 +447,20 @@ void loop()
               
               if(x >= 0)
               {
-                printTemperature(x+17, data.charAt(9), data.charAt(10), RED);
+                printTemperature(x+17, temperature[0], temperature[1], RED);
                 dotmatrix.sendframe();
               }
               
               if(x >= -32 && x < 0)
               {
-                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-                printTemperature(x+49, data.charAt(14), data.charAt(15), RED);
+                //printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                printTemperature(x+17, temperature[0], temperature[1], RED);
+                printTemperature(x+49, low[0], low[1], RED);
                 dotmatrix.sendframe();
               }
               
               if(x >= -63 && x < -32) {
-                printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
+                printTemperature(x+49, high[0], high[1], GREEN);
                 dotmatrix.sendframe();
               }
               
@@ -252,7 +470,7 @@ void loop()
               if(x == 0)
               {
                 delay(800);
-                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                printTemperature(x+17, temperature[0], temperature[1], RED);
                 dotmatrix.sendframe();
                 delay(800);
               }
@@ -260,7 +478,7 @@ void loop()
               if(x == -32)
               {
                 delay(800);
-                printTemperature(x+49, data.charAt(17), data.charAt(18), GREEN);
+                printTemperature(x+49, high[0], high[1], GREEN);
                 dotmatrix.sendframe();
                 delay(800);
               }
@@ -269,7 +487,7 @@ void loop()
             itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
             
             // next bus
-            for (int x = 32; x > -24; x--)
+            for (int x = 32; x > -56; x--)
             {
               // read the analog in value:
               brightnessValue = ldr.get();
@@ -291,12 +509,22 @@ void loop()
                 dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
               }
               
+              drawChart(x+2+24, day6);
+              drawChart(x+6+24, day5);
+              drawChart(x+10+24, day4);
+              drawChart(x+14+24, day3);
+              drawChart(x+18+24, day2);
+              drawChart(x+22+24, day1);
+              drawChart(x+26+24, day0);
+              
               dotmatrix.sendframe();
               
               delay(50);
               
               if(x == 6)
                 delay(800);
+              if(x == -23)
+                delay(2400);
             }
           }
           
@@ -325,8 +553,8 @@ void connectToServer()
   {
     //Serial.println("Making HTTP request...");
     // make HTTP GET request to API server:
-    client.println("GET /weather.php HTTP/1.1");
-    client.println("Host: api.baptistegaultier.fr");
+    client.println("GET /feed/arduino.xml?&apikey=8f82c752a93a8656d8e16858e8596c5b&id=2 HTTP/1.1");
+    client.println("HOST: smartb.labo4g.enstb.fr");
     client.println("User-Agent: Arduino/1.0");
     client.println();
   }
@@ -368,4 +596,18 @@ int nextBus(int hour, int minutes) {
   Serial.print(timetable[hour+1][0] + (60 - minutes));
   Serial.println(" minutes.");*/
   return timetable[hour+1][0] + (60 - minutes);
+}
+
+void drawChart(byte x, byte pixel) {
+  dotmatrix.rect(x, pixel, x+2, 15, GREEN);
+  if(pixel < 14)
+    dotmatrix.line(x+1, pixel+1, x+1, 14, BLACK);
+  dotmatrix.line(x+3, pixel, x+3, 15, BLACK);
+}
+
+int stringToInt(String string) {
+  char buffer[8];
+  string.toCharArray(buffer, string.length()+1);
+  
+  return atoi(buffer);
 }
