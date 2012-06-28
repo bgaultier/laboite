@@ -14,7 +14,7 @@
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
  * Sure Electronics 3216 LED matrix attached to pins 4, 5, 6, 7
- * TinkerKit LDR, Thermistor and Touch modules on I0, I1, I2
+ * TinkerKit LDR, Thermistor and Button modules on I0, I1, I2
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
@@ -23,50 +23,50 @@
  
  */
  
- 
 #include <SPI.h>
 #include <Ethernet.h>
 #include <ht1632c.h>
 #include <TinkerKit.h>
 
-#define MAX_STOPS 8
+#define DEBUG      0
+#define MAX_STOPS  8
 
-int timetable[24][MAX_STOPS] =
+int timetable[][MAX_STOPS] =
 {
+  {27},
   {},
   {},
   {},
   {},
-  {},
-  {31},
-  {11, 29, 43},
-  {3, 16, 23, 30, 37, 44, 52, 58},
-  {06, 13, 21, 29, 37, 46, 55},
-  {4, 12, 21, 30, 39, 48, 56},
-  {5, 14, 22, 30, 38, 47, 56},
-  {5, 14, 23, 32, 40, 48, 56},
-  {4, 13, 22, 31, 41, 50, 59},
-  {9, 18, 27, 36, 45, 54},
-  {3, 12, 21, 28, 37, 46, 54},
-  {3, 12, 21, 30, 39, 48, 56},
-  {4, 9, 16, 24, 32, 40, 48, 56},
-  {4, 13, 22, 31, 37, 43, 51},
-  {0, 8, 16, 24, 32, 40, 48, 56},
-  {4, 13, 23, 33, 43, 53},
-  {4, 15, 30, 45},
-  {0, 14, 29, 44, 59},
-  {19, 34, 49},
-  {4, 19, 34, 54}
+  {40},
+  {20, 57},
+  {8, 18, 29, 37, 43, 50, 59},
+  {8, 17, 26, 34, 42, 49, 57},
+  {4, 11, 18, 26, 34, 42, 49, 56},
+  {4, 11, 20, 29, 38, 47, 56},
+  {5, 14, 22, 30, 37, 45, 54},
+  {4, 14, 23, 32, 42, 51},
+  {0, 8, 17, 26, 34, 43, 52},
+  {0, 9, 18, 27, 36, 44, 53},
+  {3, 12, 21, 29, 38, 48, 57},
+  {6, 16, 25, 34, 43, 52},
+  {1, 8, 14, 22, 30, 38, 46, 54},
+  {2, 11, 20, 29, 37, 44, 50, 56},
+  {3, 10, 18, 25, 33, 39, 47, 57},
+  {7, 17, 27, 37, 47, 57},
+  {20, 52},
+  {22, 52},
+  {27,57}
 };
 
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 
 TKLightSensor ldr(I0);    // ldr used to adjust dotmatrix brightness
-//TKThermistor therm(I1);   // thermistor used for indoor temperature
-TKTouchSensor touch(I2);  // button used to start/stop scrolling
+TKThermistor therm(I1);   // thermistor used for indoor temperature
+TKButton button(I2);      // button used to start/stop scrolling
 
-boolean scrolling = true; // value modified when touch sensor pressed
+boolean scrolling = true; // value modified when button is pressed
 
 int brightnessValue = 0; // value read from the LDR
 byte pwm = 6;            // value output to the PWM (analog out)
@@ -87,15 +87,17 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 // fill in an available IP address on your network here,
 // for auto-configuration:
 //IPAddress ip(169, 254, 0, 64);
-IPAddress ip(10, 35, 128, 111);
+IPAddress ip(192, 168, 1, 101);
+IPAddress gateway(192, 168, 1, 254);
 IPAddress subnet(255, 255, 255, 0);
+
 
 // initialize the library instance:
 EthernetClient client;
 
-const int requestInterval = 10000;  // delay between requests
+const int requestInterval = 10000;     // delay between requests
 
-IPAddress server(192, 108, 119 ,4);              // Your favorite api server IP address
+IPAddress server(82, 165 , 110, 226);  // Your favorite api server IP address
 
 boolean requested;                   // whether you've made a request since connecting
 long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
@@ -151,25 +153,32 @@ void setup() {
   content.reserve(8);
   
   // Dotmatrix brightness
-  dotmatrix.pwm(8);
+  dotmatrix.pwm(pwm);
   
   // initialize serial:
-  //Serial.begin(9600);
+  #ifdef DEBUG
+  Serial.begin(9600);
+  #endif
   // initialize dotmatrix:
   dotmatrix.clear();
   
   // display a welcome message:
-  //Serial.println("laboite v2.0 starting...");
+  #ifdef DEBUG
+  Serial.println("laboite v2.0 starting...");
+  #endif
   
   // attempt a DHCP connection:
-  if (!Ethernet.begin(mac)) {
+  //if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
-    Ethernet.begin(mac, ip, subnet);
-  }
+    Ethernet.begin(mac, ip, gateway, gateway);
+  //}
   
   // print your local IP address:
-  /*Serial.print("My address:");
-  Serial.println(Ethernet.localIP());*/
+  #ifdef DEBUG
+  Serial.print("My address: ");
+  Serial.println(Ethernet.localIP());
+  #endif
+  
   // connect to API server:
   connectToServer();
 }
@@ -182,6 +191,10 @@ void loop()
     if (client.available()) {
       // read incoming bytes:
       char inChar = client.read();
+      
+      #ifdef DEBUG
+      Serial.print(inChar);
+      #endif
 
       // add incoming byte to end of line:
       currentLine += inChar; 
@@ -420,11 +433,10 @@ void loop()
           
           dotmatrix.sendframe();
           
-          if(scrolling)
-          {
+          if(scrolling) {
             // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-            //indoorTemperature = therm.getCelsius();
-            //itoa (indoorTemperature, indoorTemperatureString, 10);
+            indoorTemperature = therm.getCelsius();
+            itoa(indoorTemperature, indoorTemperatureString, 10);
             
             for (int x = 32; x > -64; x--)
             {
@@ -445,7 +457,6 @@ void loop()
               dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
               
               dotmatrix.sendframe();
-              
               if(x >= 0)
               {
                 printTemperature(x+17, temperature[0], temperature[1], RED);
@@ -454,8 +465,8 @@ void loop()
               
               if(x >= -32 && x < 0)
               {
-                //printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-                printTemperature(x+17, temperature[0], temperature[1], RED);
+                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                //printTemperature(x+17, temperature[0], temperature[1], RED);
                 printTemperature(x+49, low[0], low[1], RED);
                 dotmatrix.sendframe();
               }
@@ -535,27 +546,39 @@ void loop()
       }
     }   
   }
-  else if (millis() - lastAttemptTime > requestInterval) {
-    // if you're not connected, and ten seconds have passed since
-    // your last connection, then attempt to connect again:
-    if(touch.get())
-      scrolling = !scrolling;
-    connectToServer();
+  else {
+    // if you couldn't make a connection:
+    #ifdef DEBUG
+    Serial.println("Connection failed");
+    Serial.println("Disconnecting...");
+    #endif
+    client.stop();
+    
+    if (millis() - lastAttemptTime > requestInterval) {
+      // if you're not connected, and ten seconds have passed since
+      // your last connection, then attempt to connect again:
+      if(button.get())
+        scrolling = !scrolling;
+        connectToServer();
+      }
   }
 }
 
 void connectToServer()
 {
   // attempt to connect:
-  /*Serial.print("Connecting to ");
-  Serial.print(serverName);
-  Serial.println("...");*/
+  #ifdef DEBUG
+  Serial.print("Connecting to baptistegaultier.fr...");
+  #endif
   if (client.connect(server, 80))
   {
-    //Serial.println("Making HTTP request...");
+    #ifdef DEBUG
+    Serial.println("Making HTTP request...");
+    #endif
+    
     // make HTTP GET request to API server:
-    client.println("GET /feed/arduino.xml?&apikey=8f82c752a93a8656d8e16858e8596c5b&id=2 HTTP/1.1");
-    client.println("HOST: smartb.labo4g.enstb.fr");
+    client.println("GET /emoncms/feed/arduino.xml?&apikey=74b9374ac44c91e96ba3a7d72915d83c&id=2 HTTP/1.1");
+    client.println("Host: baptistegaultier.fr");
     client.println("User-Agent: Arduino/1.0");
     client.println();
   }
@@ -577,8 +600,10 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   dotmatrix.pwm(pwm);
   
   // print the results to the serial monitor:
-  //Serial.print("brightness : " );                      
-  //Serial.println(brightnessValue);  
+  #ifdef DEBUG
+  Serial.print("brightness : " );                      
+  Serial.println(brightnessValue);
+  #endif
 }
 
 int nextBus(int hour, int minutes) {
@@ -587,13 +612,13 @@ int nextBus(int hour, int minutes) {
     if(timetable[hour][index] < minutes);
       //Serial.println(timetable[hour][index]);
     else {
-      /*Serial.print("Prochain bus dans ");
+      /*Serial.print("Next bus in ");
       Serial.print(abs(minutes - timetable[hour][index]));
       Serial.println(" minutes.");*/
       return abs(minutes - timetable[hour][index]);
     }
   }
-  /*Serial.print("Prochain bus dans ");
+  /*Serial.print("Next bus in ");
   Serial.print(timetable[hour+1][0] + (60 - minutes));
   Serial.println(" minutes.");*/
   return timetable[hour+1][0] + (60 - minutes);
@@ -609,6 +634,5 @@ void drawChart(byte x, byte pixel) {
 int stringToInt(String string) {
   char buffer[8];
   string.toCharArray(buffer, string.length()+1);
-  
   return atoi(buffer);
 }
