@@ -28,7 +28,7 @@
 #include <ht1632c.h>
 #include <TinkerKit.h>
 
-#define DEBUG      0
+#define NODEBUG
 #define MAX_STOPS  8
 
 int timetable[][MAX_STOPS] =
@@ -86,10 +86,8 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
-//IPAddress ip(169, 254, 0, 64);
-IPAddress ip(192, 168, 1, 101);
-IPAddress gateway(192, 168, 1, 254);
-IPAddress subnet(255, 255, 255, 0);
+IPAddress ip(169, 254, 0, 64);
+IPAddress subnet(255, 255, 0, 0);
 
 
 // initialize the library instance:
@@ -97,7 +95,7 @@ EthernetClient client;
 
 const int requestInterval = 10000;     // delay between requests
 
-IPAddress server(82, 165 , 110, 226);  // Your favorite api server IP address
+IPAddress server(82, 165 , 110, 226);  // Your favorite API server IP address
 
 boolean requested;                   // whether you've made a request since connecting
 long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
@@ -133,7 +131,6 @@ int day4;
 int day5;
 int day6;
 
-
 // weather forecast sprites:
 uint16_t sprites[5][9] =
 {
@@ -149,7 +146,7 @@ uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a
 
 void setup() {
   // reserve space for the strings:
-  currentLine.reserve(128);
+  currentLine.reserve(32);
   content.reserve(8);
   
   // Dotmatrix brightness
@@ -168,10 +165,10 @@ void setup() {
   #endif
   
   // attempt a DHCP connection:
-  //if (!Ethernet.begin(mac)) {
+  if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
-    Ethernet.begin(mac, ip, gateway, gateway);
-  //}
+    Ethernet.begin(mac, ip, subnet);
+  }
   
   // print your local IP address:
   #ifdef DEBUG
@@ -185,8 +182,7 @@ void setup() {
 
 
 
-void loop()
-{
+void loop() {
   if (client.connected()) {
     if (client.available()) {
       // read incoming bytes:
@@ -438,8 +434,7 @@ void loop()
             indoorTemperature = therm.getCelsius();
             itoa(indoorTemperature, indoorTemperatureString, 10);
             
-            for (int x = 32; x > -64; x--)
-            {
+            for (int x = 32; x > -64; x--) {
               dotmatrix.putchar(x+12, 9, ' ', RED);
               
               if(todayIcon == 0)
@@ -457,14 +452,12 @@ void loop()
               dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
               
               dotmatrix.sendframe();
-              if(x >= 0)
-              {
+              if(x >= 0) {
                 printTemperature(x+17, temperature[0], temperature[1], RED);
                 dotmatrix.sendframe();
               }
               
-              if(x >= -32 && x < 0)
-              {
+              if(x >= -32 && x < 0) {
                 printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
                 //printTemperature(x+17, temperature[0], temperature[1], RED);
                 printTemperature(x+49, low[0], low[1], RED);
@@ -479,16 +472,14 @@ void loop()
               
               delay(50);
               
-              if(x == 0)
-              {
+              if(x == 0) {
                 delay(800);
                 printTemperature(x+17, temperature[0], temperature[1], RED);
                 dotmatrix.sendframe();
                 delay(800);
               }
               
-              if(x == -32)
-              {
+              if(x == -32) {
                 delay(800);
                 printTemperature(x+49, high[0], high[1], GREEN);
                 dotmatrix.sendframe();
@@ -499,13 +490,8 @@ void loop()
             itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
             
             // next bus
-            for (int x = 32; x > -56; x--)
-            {
-              // read the analog in value:
-              brightnessValue = ldr.get();
-              pwm = map(brightnessValue, 0, 1023, 0, 15);
-              dotmatrix.pwm(pwm);
-              
+            for (int x = 32; x > -56; x--) {
+              adjustBrightness();
               dotmatrix.putchar(x+11, 10, ' ', GREEN);
               
               dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);          
@@ -533,10 +519,8 @@ void loop()
               
               delay(50);
               
-              if(x == 6)
+              if(x == 6 || x == -23)
                 delay(800);
-              if(x == -23)
-                delay(2400);
             }
           }
           
@@ -546,21 +530,12 @@ void loop()
       }
     }   
   }
-  else {
-    // if you couldn't make a connection:
-    #ifdef DEBUG
-    Serial.println("Connection failed");
-    Serial.println("Disconnecting...");
-    #endif
-    client.stop();
-    
-    if (millis() - lastAttemptTime > requestInterval) {
-      // if you're not connected, and ten seconds have passed since
-      // your last connection, then attempt to connect again:
-      if(button.get())
-        scrolling = !scrolling;
-        connectToServer();
-      }
+  else if (millis() - lastAttemptTime > requestInterval) {
+    // if you're not connected, and ten seconds have passed since
+    // your last connection, then attempt to connect again:
+    if(button.get())
+      scrolling = !scrolling;
+    connectToServer();
   }
 }
 
@@ -594,10 +569,7 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   dotmatrix.putchar(x+5, 9, secondDigit, color);
   dotmatrix.putchar(x+10, 9, '*', color);
   
-  // read the analog in value:
-  brightnessValue = ldr.get();
-  pwm = map(brightnessValue, 0, 1023, 0, 15);
-  dotmatrix.pwm(pwm);
+  adjustBrightness();
   
   // print the results to the serial monitor:
   #ifdef DEBUG
@@ -635,4 +607,11 @@ int stringToInt(String string) {
   char buffer[8];
   string.toCharArray(buffer, string.length()+1);
   return atoi(buffer);
+}
+
+void adjustBrightness() {
+  // read the analog in value:
+  brightnessValue = ldr.get();
+  pwm = map(brightnessValue, 0, 1023, 0, 15);
+  dotmatrix.pwm(pwm);
 }
