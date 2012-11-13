@@ -1,6 +1,6 @@
 /*
 
- laboite v2.0
+ laboite v2.1
  
  Key Features:
  * Indoor Temperature
@@ -8,8 +8,8 @@
  * Automatic screen brightness adjusting
  * Automatic time (NTP)
  * Weather forecast icons (sunny, cloudy, rain, snow, fog)
- * Next bus arrival information from Keolis gtfs
- * Energy history charts from past 7 days (emoncms)
+ * Next bus arrival information from Keolis real-time API http://data.keolis-rennes.com/
+ * Number of available bikes LE vélo STAR
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
@@ -18,7 +18,7 @@
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 9 Apr 2012
+ modified 23 Oct 2012
  by Baptiste Gaultier
  
  */
@@ -28,36 +28,7 @@
 #include <ht1632c.h>
 #include <TinkerKit.h>
 
-#define NODEBUG
-#define MAX_STOPS  8
-
-int timetable[][MAX_STOPS] =
-{
-  {27},
-  {},
-  {},
-  {},
-  {},
-  {40},
-  {20, 57},
-  {8, 18, 29, 37, 43, 50, 59},
-  {8, 17, 26, 34, 42, 49, 57},
-  {4, 11, 18, 26, 34, 42, 49, 56},
-  {4, 11, 20, 29, 38, 47, 56},
-  {5, 14, 22, 30, 37, 45, 54},
-  {4, 14, 23, 32, 42, 51},
-  {0, 8, 17, 26, 34, 43, 52},
-  {0, 9, 18, 27, 36, 44, 53},
-  {3, 12, 21, 29, 38, 48, 57},
-  {6, 16, 25, 34, 43, 52},
-  {1, 8, 14, 22, 30, 38, 46, 54},
-  {2, 11, 20, 29, 37, 44, 50, 56},
-  {3, 10, 18, 25, 33, 39, 47, 57},
-  {7, 17, 27, 37, 47, 57},
-  {20, 52},
-  {22, 52},
-  {27,57}
-};
+#define DEBUG
 
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
@@ -69,11 +40,12 @@ TKButton button(I2);      // button used to start/stop scrolling
 boolean scrolling = true; // value modified when button is pressed
 
 int brightnessValue = 0; // value read from the LDR
-byte pwm = 6;            // value output to the PWM (analog out)
+int previousBrightnessValue = 512; // previous value of brightness
+
+byte pwm = 8;            // value output to the PWM (analog out)
 
 char hour[3];
 char minutes[3];
-char nextBusString[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
@@ -95,7 +67,7 @@ EthernetClient client;
 
 const int requestInterval = 10000;     // delay between requests
 
-IPAddress server(82, 165 , 110, 226);  // Your favorite API server IP address
+char serverName[] = "api.baptistegaultier.fr";  // Your favorite API server
 
 boolean requested;                   // whether you've made a request since connecting
 long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
@@ -107,29 +79,19 @@ String content = "";
 char temperature[3];
 char low[3];
 char high[3];
+char nextBus[3];
+char bikesAvailable[3];
+
 
 boolean readingTime = false;
+boolean readingBus = false;
+boolean readingBikes = false;
 boolean readingTodayIcon = false;
 boolean readingTemperature = false;
 boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
-boolean readingInstantaneous = false;
-boolean readingDay0 = false;
-boolean readingDay1 = false;
-boolean readingDay2 = false;
-boolean readingDay3 = false;
-boolean readingDay4 = false;
-boolean readingDay5 = false;
-boolean readingDay6 = false;
 
-int day0;
-int day1;
-int day2;
-int day3;
-int day4;
-int day5;
-int day6;
 
 // weather forecast sprites:
 uint16_t sprites[5][9] =
@@ -143,6 +105,8 @@ uint16_t sprites[5][9] =
 
 // bus sprite
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
+// bike sprite
+uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
 
 void setup() {
   // reserve space for the strings:
@@ -161,7 +125,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v2.0 starting...");
+  Serial.println("laboite v2.1 starting...");
   #endif
   
   // attempt a DHCP connection:
@@ -172,8 +136,8 @@ void setup() {
   
   // print your local IP address:
   #ifdef DEBUG
-  Serial.print("My address: ");
-  Serial.println(Ethernet.localIP());
+  /*Serial.print("My address: ");
+  Serial.println(Ethernet.localIP());*/
   #endif
   
   // connect to API server:
@@ -219,6 +183,42 @@ void loop() {
           minutes[0] = content.charAt(3);
           minutes[1] = content.charAt(4);
           minutes[3] = '\0';
+        }
+      }
+      
+      if (currentLine.endsWith("<nextbus>")) {
+        readingBus = true; 
+        content = "";
+      }
+
+      if (readingBus) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingBus = false;
+          nextBus[0] = content.charAt(0);
+          nextBus[1] = content.charAt(1);
+          nextBus[2] = '\0';
+        }
+      }
+      
+      if (currentLine.endsWith("<bikesavailable>")) {
+        readingBikes = true; 
+        content = "";
+      }
+
+      if (readingBikes) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingBikes = false;
+          bikesAvailable[0] = content.charAt(0);
+          bikesAvailable[1] = content.charAt(1);
+          bikesAvailable[2] = '\0';
         }
       }
       
@@ -305,120 +305,9 @@ void loop() {
           high[0] = content.charAt(0);
           high[1] = content.charAt(1);
           high[2] = '\0';
-        }
-      }
-
-      if ( currentLine.endsWith("<day0>")) {
-        readingDay0 = true; 
-        content = "";
-      }
-
-      if (readingDay0) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay0 = false;
-          day0 = stringToInt(content);
-        }
-      }
-
-      if ( currentLine.endsWith("<day1>")) {
-        readingDay1 = true; 
-        content = "";
-      }
-
-      if (readingDay1) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay1 = false;
-          day1 = stringToInt(content);
-        }
-      }
-
-      if ( currentLine.endsWith("<day2>")) {
-        readingDay2 = true; 
-        content = "";
-      }
-
-      if (readingDay2) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay2 = false;
-          day2 = stringToInt(content);
-        }
-      }
-
-      if ( currentLine.endsWith("<day3>")) {
-        readingDay3 = true; 
-        content = "";
-      }
-
-      if (readingDay3) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay3 = false;
-          day3 = stringToInt(content);
-        }
-      }
-
-      if ( currentLine.endsWith("<day4>")) {
-        readingDay4 = true; 
-        content = "";
-      }
-
-      if (readingDay4) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay4 = false;
-          day4 = stringToInt(content);
-        }
-      }
-
-      if ( currentLine.endsWith("<day5>")) {
-        readingDay5 = true; 
-        content = "";
-      }
-
-      if (readingDay5) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          readingDay5 = false;
-          day5 = stringToInt(content);
-        }
-      }
-      if ( currentLine.endsWith("<day6>")) {
-        readingDay6 = true; 
-        content = "";
-      }
-
-      if (readingDay6) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        } 
-        else {
-          // if you got a ">" character, you've
-          // reached the end of the XML
-          readingDay6 = false;
-          day6 = stringToInt(content);
           
+          // if you got a ">" character, you've
+          // reached the end of the XML          
           dotmatrix.setfont(FONT_5x7);
           
           dotmatrix.putchar(5, 0, hour[0], GREEN);
@@ -469,58 +358,52 @@ void loop() {
                 dotmatrix.sendframe();
               }
               
-              
               delay(50);
               
               if(x == 0) {
-                delay(800);
-                printTemperature(x+17, temperature[0], temperature[1], RED);
+                waitAWhile();
+                //delay(800);
+                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
                 dotmatrix.sendframe();
-                delay(800);
+                waitAWhile();
+                //delay(800);
               }
               
               if(x == -32) {
-                delay(800);
+                waitAWhile();
+                //delay(800);
                 printTemperature(x+49, high[0], high[1], GREEN);
                 dotmatrix.sendframe();
-                delay(800);
+                waitAWhile();
+                //delay(800);
               }
             }
             
-            itoa(nextBus(atoi(hour), atoi(minutes)), nextBusString, 10);
-            
             // next bus
-            for (int x = 32; x > -56; x--) {
+            for (int x = 32; x > -24; x--) {
               adjustBrightness();
               dotmatrix.putchar(x+11, 10, ' ', GREEN);
               
-              dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);          
-              dotmatrix.putchar(x+11, 9, nextBusString[0], GREEN);
-              
-              if(nextBusString[1] == '\0')
-              {
-                dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
-              }
+              //dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);
+              dotmatrix.putbitmap(x-1, 7, bikeSprite, 12, 9, ORANGE);
+              if(nextBus[0] == '-')
+                dotmatrix.putchar(x+11, 9, '<', GREEN);
               else
-              {
-                dotmatrix.putchar(x+5+11, 9, nextBusString[1], GREEN);
+                dotmatrix.putchar(x+11, 9, nextBus[0], GREEN);
+              
+              if(nextBus[1] == '\0')
+                dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
+              else {
+                dotmatrix.putchar(x+5+11, 9, nextBus[1], GREEN);
                 dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
               }
-              
-              drawChart(x+2+24, day6);
-              drawChart(x+6+24, day5);
-              drawChart(x+10+24, day4);
-              drawChart(x+14+24, day3);
-              drawChart(x+18+24, day2);
-              drawChart(x+22+24, day1);
-              drawChart(x+26+24, day0);
               
               dotmatrix.sendframe();
               
               delay(50);
               
               if(x == 6 || x == -23)
-                delay(800);
+                waitAWhile();
             }
           }
           
@@ -543,17 +426,17 @@ void connectToServer()
 {
   // attempt to connect:
   #ifdef DEBUG
-  Serial.print("Connecting to baptistegaultier.fr...");
+  Serial.print("Connecting to api.baptistegaultier.fr...");
   #endif
-  if (client.connect(server, 80))
+  if (client.connect(serverName, 80))
   {
     #ifdef DEBUG
     Serial.println("Making HTTP request...");
     #endif
     
     // make HTTP GET request to API server:
-    client.println("GET /emoncms/feed/arduino.xml?&apikey=74b9374ac44c91e96ba3a7d72915d83c&id=2 HTTP/1.1");
-    client.println("Host: baptistegaultier.fr");
+    client.println("GET /laboite.xml HTTP/1.1");
+    client.println("Host: api.baptistegaultier.fr");
     client.println("User-Agent: Arduino/1.0");
     client.println();
   }
@@ -563,8 +446,10 @@ void connectToServer()
 
 void printTemperature(int x, char firstDigit, char secondDigit, byte color)
 {
-  if(firstDigit == '0')
+  if(secondDigit == '\0') {
+    secondDigit = firstDigit;
     firstDigit = ' ';
+  }
   dotmatrix.putchar(x, 9, firstDigit, color);
   dotmatrix.putchar(x+5, 9, secondDigit, color);
   dotmatrix.putchar(x+10, 9, '*', color);
@@ -578,40 +463,23 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   #endif
 }
 
-int nextBus(int hour, int minutes) {
-  for (int index = 0; index < MAX_STOPS; index++)
-  {
-    if(timetable[hour][index] < minutes);
-      //Serial.println(timetable[hour][index]);
-    else {
-      /*Serial.print("Next bus in ");
-      Serial.print(abs(minutes - timetable[hour][index]));
-      Serial.println(" minutes.");*/
-      return abs(minutes - timetable[hour][index]);
-    }
-  }
-  /*Serial.print("Next bus in ");
-  Serial.print(timetable[hour+1][0] + (60 - minutes));
-  Serial.println(" minutes.");*/
-  return timetable[hour+1][0] + (60 - minutes);
+void adjustBrightness() {
+  // read the analog in value:
+  brightnessValue = (ldr.get() + previousBrightnessValue) / 2;
+  pwm = map(brightnessValue, 0, 1023, 0, 15);
+  dotmatrix.pwm(pwm);
+  previousBrightnessValue = brightnessValue;
 }
 
-void drawChart(byte x, byte pixel) {
-  dotmatrix.rect(x, pixel, x+2, 15, GREEN);
-  if(pixel < 14)
-    dotmatrix.line(x+1, pixel+1, x+1, 14, BLACK);
-  dotmatrix.line(x+3, pixel, x+3, 15, BLACK);
+void waitAWhile() {
+  for (int i = 0; i < 16; i++) {
+    adjustBrightness();
+    delay(50);
+  }
 }
 
 int stringToInt(String string) {
   char buffer[8];
   string.toCharArray(buffer, string.length()+1);
   return atoi(buffer);
-}
-
-void adjustBrightness() {
-  // read the analog in value:
-  brightnessValue = ldr.get();
-  pwm = map(brightnessValue, 0, 1023, 0, 15);
-  dotmatrix.pwm(pwm);
 }
