@@ -1,6 +1,6 @@
 /*
 
- laboite v2.1
+ laboite v2.2
  
  Key Features:
  * Indoor Temperature
@@ -10,6 +10,8 @@
  * Weather forecast icons (sunny, cloudy, rain, snow, fog)
  * Next bus arrival information from Keolis real-time API http://data.keolis-rennes.com/
  * Number of available bikes LE vélo STAR
+ * Number of unread mails
+ * Energy history charts from past 7 days (emoncms)
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
@@ -18,7 +20,7 @@
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 23 Oct 2012
+ modified 25 Nov 2012
  by Baptiste Gaultier
  
  */
@@ -28,7 +30,7 @@
 #include <ht1632c.h>
 #include <TinkerKit.h>
 
-#define DEBUG
+#define NODEBUG
 
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
@@ -69,9 +71,6 @@ const int requestInterval = 10000;     // delay between requests
 
 char serverName[] = "api.baptistegaultier.fr";  // Your favorite API server
 
-boolean requested;                   // whether you've made a request since connecting
-long lastAttemptTime = 0;            // last time you connected to the server, in milliseconds
-
 // Variables used to parse the XML from emoncms
 
 String currentLine = "";             // string to hold the text from server
@@ -81,6 +80,7 @@ char low[3];
 char high[3];
 char nextBus[3];
 char bikesAvailable[3];
+char unreadEmails[3];
 
 
 boolean readingTime = false;
@@ -91,6 +91,7 @@ boolean readingTemperature = false;
 boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
+boolean readingEmails = false;
 
 
 // weather forecast sprites:
@@ -107,6 +108,9 @@ uint16_t sprites[5][9] =
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
 // bike sprite
 uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
+// email sprite
+uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
+
 
 void setup() {
   // reserve space for the strings:
@@ -125,7 +129,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v2.1 starting...");
+  Serial.println("laboite v2.2 starting...");
   #endif
   
   // attempt a DHCP connection:
@@ -222,6 +226,24 @@ void loop() {
         }
       }
       
+      if (currentLine.endsWith("<unreademails>")) {
+        readingEmails = true; 
+        content = "";
+      }
+
+      if (readingEmails) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingEmails = false;
+          unreadEmails[0] = content.charAt(0);
+          unreadEmails[1] = content.charAt(1);
+          unreadEmails[2] = '\0';
+        }
+      }
+      
       if ( currentLine.endsWith("<today>")) {
         readingTodayIcon = true; 
         content = "";
@@ -310,115 +332,150 @@ void loop() {
           // reached the end of the XML          
           dotmatrix.setfont(FONT_5x7);
           
-          dotmatrix.putchar(5, 0, hour[0], GREEN);
-          dotmatrix.putchar(10, 0, hour[1], GREEN);
-          dotmatrix.putchar(14, 0, ':', GREEN);
-          dotmatrix.putchar(18, 0, minutes[0], GREEN);
-          dotmatrix.putchar(23, 0, minutes[1], GREEN);
-          
-          dotmatrix.sendframe();
-          
           if(scrolling) {
+            printTime(0);
             // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
             indoorTemperature = therm.getCelsius();
             itoa(indoorTemperature, indoorTemperatureString, 10);
             
-            for (int x = 32; x > -64; x--) {
-              dotmatrix.putchar(x+12, 9, ' ', RED);
+            for (int x = 32; x > -128; x--) {
+              adjustBrightness();
               
-              if(todayIcon == 0)
-                color = ORANGE;
-              else
-                color = RED;
-              dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+              // first screen : current weather condition 32→0
+              if(x > -16) {
+                dotmatrix.putchar(x+12, 9, ' ', RED);
+                color = todayIcon == 0 ? color = ORANGE : color = RED;
+                dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+              }
               
-              dotmatrix.putchar(x+12+32, 9, ' ', RED);
-              
-              if(tomorrowIcon == 0)
-                color = ORANGE;
-              else
-                color = RED;
-              dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
-              
-              dotmatrix.sendframe();
               if(x >= 0) {
                 printTemperature(x+17, temperature[0], temperature[1], RED);
                 dotmatrix.sendframe();
               }
               
+              if(x == 0) {
+                waitAWhile();
+                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+                dotmatrix.sendframe();
+                waitAWhile();
+              }
+              
+              // second screen : tomorrow weather condition 0→-32
+              if(x <= 1 && x >= -48) {
+                dotmatrix.putchar(x+44, 9, ' ', RED);
+                color = tomorrowIcon == 0 ? color = ORANGE : color = RED;
+                dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
+                #ifdef DEBUG
+                Serial.println("tomorrow icon");
+                #endif
+              }
+              
               if(x >= -32 && x < 0) {
                 printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-                //printTemperature(x+17, temperature[0], temperature[1], RED);
                 printTemperature(x+49, low[0], low[1], RED);
                 dotmatrix.sendframe();
               }
               
-              if(x >= -63 && x < -32) {
-                printTemperature(x+49, high[0], high[1], GREEN);
-                dotmatrix.sendframe();
-              }
-              
-              delay(50);
-              
-              if(x == 0) {
-                waitAWhile();
-                //delay(800);
-                printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-                dotmatrix.sendframe();
-                waitAWhile();
-                //delay(800);
-              }
-              
               if(x == -32) {
                 waitAWhile();
-                //delay(800);
                 printTemperature(x+49, high[0], high[1], GREEN);
                 dotmatrix.sendframe();
                 waitAWhile();
-                //delay(800);
-              }
-            }
-            
-            // next bus
-            for (int x = 32; x > -24; x--) {
-              adjustBrightness();
-              dotmatrix.putchar(x+11, 10, ' ', GREEN);
-              
-              //dotmatrix.putbitmap(x+1, 7, busSprite, 9, 9, ORANGE);
-              dotmatrix.putbitmap(x-1, 7, bikeSprite, 12, 9, ORANGE);
-              if(nextBus[0] == '-')
-                dotmatrix.putchar(x+11, 9, '<', GREEN);
-              else
-                dotmatrix.putchar(x+11, 9, nextBus[0], GREEN);
-              
-              if(nextBus[1] == '\0')
-                dotmatrix.putchar(x+5+11, 9, '\'', GREEN);
-              else {
-                dotmatrix.putchar(x+5+11, 9, nextBus[1], GREEN);
-                dotmatrix.putchar(x+10+11, 9, '\'', GREEN);
               }
               
-              dotmatrix.sendframe();
+              //third screen : email and next bus arrival
+              if(x >= -63 && x < -32) {
+                printTemperature(x+49, high[0], high[1], GREEN);
+                printTime(x+32);
+              }
               
+              //fourth screen : bikes available and energy chart
+              if(x <= -33) {        
+                
+                // bus
+                if(nextBus[0] == '-')
+                  dotmatrix.putchar(x+80, 9, '<', GREEN);
+                else
+                  dotmatrix.putchar(x+80, 9, nextBus[0], GREEN);
+                  
+                if(nextBus[1] == '\0')
+                  dotmatrix.putchar(x+85, 9, '\'', GREEN);
+                else {
+                  dotmatrix.putchar(x+85, 9, nextBus[1], GREEN);
+                  dotmatrix.putchar(x+85, 9, '\'', GREEN);
+                }
+                
+                dotmatrix.putbitmap(x+67, 7, busSprite, 9, 9, ORANGE);
+                
+                // email
+                
+                dotmatrix.putbitmap(x+66, 0, emailSprite, 9, 6, ORANGE);
+                dotmatrix.putchar(x+75, 0, ' ', ORANGE);
+                
+                if(unreadEmails[1] == '\0')
+                  dotmatrix.putchar(x+85, 0, ' ', GREEN);
+                else
+                  dotmatrix.putchar(x+85, 0, unreadEmails[1], GREEN);
+                
+                dotmatrix.putchar(x+80, 0, unreadEmails[0], GREEN);
+                
+                //bike
+                dotmatrix.putbitmap(x+97, 0, bikeSprite, 12, 9, ORANGE);
+                
+                if(bikesAvailable[1] == '\0') {
+                  color = bikesAvailable[0] == '0' ? color = RED : color = ORANGE;
+                }
+                else {
+                  color = GREEN;
+                  dotmatrix.putchar(x+117, 2, bikesAvailable[1], color);
+                }
+                
+                dotmatrix.putchar(x+109, 2, ' ', color);
+                
+                dotmatrix.putchar(x+112, 2, bikesAvailable[0], color);
+                
+                printTime(x+127);
+                
+                drawChart(x+3+94, 10);
+                drawChart(x+7+94, 9);
+                drawChart(x+11+94, 10);
+                drawChart(x+15+94, 14);
+                drawChart(x+19+94, 15);
+                drawChart(x+23+94, 12);
+                drawChart(x+27+94, 9);
+                
+                dotmatrix.sendframe();
+                
+                if(x == -63 || x == -95) {
+                  waitAWhile();
+                  waitAWhile();
+                }
+              }
               delay(50);
-              
-              if(x == 6 || x == -23)
-                waitAWhile();
             }
+            if(button.get())
+              scrolling = !scrolling;
           }
-          
           // close the connection to the server:
           client.stop(); 
         }
       }
     }   
   }
-  else if (millis() - lastAttemptTime > requestInterval) {
-    // if you're not connected, and ten seconds have passed since
-    // your last connection, then attempt to connect again:
-    if(button.get())
-      scrolling = !scrolling;
-    connectToServer();
+  else {
+    if(scrolling) {
+      // if you're not connected and you're scrolling
+      // then attempt to connect again:
+      connectToServer();
+    }
+    else {
+      printTime(0);
+      dotmatrix.sendframe();
+      delay(requestInterval);
+      if(button.get())
+        scrolling = !scrolling;
+      connectToServer();
+    }
   }
 }
 
@@ -440,8 +497,6 @@ void connectToServer()
     client.println("User-Agent: Arduino/1.0");
     client.println();
   }
-  // note the time of this connect attempt:
-  lastAttemptTime = millis();
 }
 
 void printTemperature(int x, char firstDigit, char secondDigit, byte color)
@@ -454,14 +509,21 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
   dotmatrix.putchar(x+5, 9, secondDigit, color);
   dotmatrix.putchar(x+10, 9, '*', color);
   
-  adjustBrightness();
-  
   // print the results to the serial monitor:
   #ifdef DEBUG
-  Serial.print("brightness : " );                      
-  Serial.println(brightnessValue);
+  //Serial.print("brightness : " );                      
+  //Serial.println(brightnessValue);
   #endif
 }
+
+void printTime(int x) {
+  dotmatrix.putchar(x+5, 0, hour[0], GREEN);
+  dotmatrix.putchar(x+10, 0, hour[1], GREEN);
+  dotmatrix.putchar(x+14, 0, ':', GREEN);
+  dotmatrix.putchar(x+18, 0, minutes[0], GREEN);
+  dotmatrix.putchar(x+23, 0, minutes[1], GREEN);
+}
+
 
 void adjustBrightness() {
   // read the analog in value:
@@ -469,6 +531,10 @@ void adjustBrightness() {
   pwm = map(brightnessValue, 0, 1023, 0, 15);
   dotmatrix.pwm(pwm);
   previousBrightnessValue = brightnessValue;
+  
+  // check if scrolling button has been pressed
+  if(button.get())
+    scrolling = !scrolling;
 }
 
 void waitAWhile() {
@@ -482,4 +548,11 @@ int stringToInt(String string) {
   char buffer[8];
   string.toCharArray(buffer, string.length()+1);
   return atoi(buffer);
+}
+
+void drawChart(byte x, byte pixel) {
+  dotmatrix.rect(x, pixel, x+2, 15, GREEN);
+  if(pixel < 14)
+    dotmatrix.line(x+1, pixel+1, x+1, 14, BLACK);
+  dotmatrix.line(x+3, pixel, x+3, 15, BLACK);
 }
