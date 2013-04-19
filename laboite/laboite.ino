@@ -1,6 +1,6 @@
 /*
 
- laboite v2.2
+ laboite v2.3
  
  Key Features:
  * Indoor Temperature
@@ -81,7 +81,13 @@ char high[3];
 char nextBus[3];
 char bikesAvailable[3];
 char unreadEmails[3];
-
+byte day0;
+byte day1;
+byte day2;
+byte day3;
+byte day4;
+byte day5;
+byte day6;
 
 boolean readingTime = false;
 boolean readingBus = false;
@@ -92,7 +98,13 @@ boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
 boolean readingEmails = false;
-
+boolean readingDay0 = false;
+boolean readingDay1 = false;
+boolean readingDay2 = false;
+boolean readingDay3 = false;
+boolean readingDay4 = false;
+boolean readingDay5 = false;
+boolean readingDay6 = false;
 
 // weather forecast sprites:
 uint16_t sprites[5][9] =
@@ -129,15 +141,17 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v2.2 starting...");
+  Serial.println("laboite v2.3 starting...");
   #endif
   
+  Ethernet.begin(mac);
+  /*
   // attempt a DHCP connection:
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     Ethernet.begin(mac, ip, subnet);
   }
-  
+  */
   // print your local IP address:
   #ifdef DEBUG
   /*Serial.print("My address: ");
@@ -241,6 +255,118 @@ void loop() {
           unreadEmails[0] = content.charAt(0);
           unreadEmails[1] = content.charAt(1);
           unreadEmails[2] = '\0';
+        }
+      }
+      
+      if (currentLine.endsWith("<day0>")) {
+        readingDay0 = true; 
+        content = "";
+      }
+
+      if (readingDay0) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay0 = false;
+          day0 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day1>")) {
+        readingDay1 = true; 
+        content = "";
+      }
+
+      if (readingDay1) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay1 = false;
+          day1 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day2>")) {
+        readingDay2 = true; 
+        content = "";
+      }
+
+      if (readingDay2) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay2 = false;
+          day2 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day3>")) {
+        readingDay3 = true; 
+        content = "";
+      }
+
+      if (readingDay3) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay3 = false;
+          day3 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day4>")) {
+        readingDay4 = true; 
+        content = "";
+      }
+
+      if (readingDay4) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay4 = false;
+          day4 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day5>")) {
+        readingDay5 = true; 
+        content = "";
+      }
+
+      if (readingDay5) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay5 = false;
+          day5 = stringToInt(content);
+        }
+      }
+      
+      if (currentLine.endsWith("<day6>")) {
+        readingDay6 = true; 
+        content = "";
+      }
+
+      if (readingDay6) {
+        if (inChar != '<') {
+          if (inChar != '>')
+            content += inChar;
+        }
+        else {
+          readingDay6 = false;
+          day6 = stringToInt(content);
         }
       }
       
@@ -436,13 +562,13 @@ void loop() {
                 
                 printTime(x+127);
                 
-                drawChart(x+3+94, 10);
-                drawChart(x+7+94, 9);
-                drawChart(x+11+94, 10);
-                drawChart(x+15+94, 14);
-                drawChart(x+19+94, 15);
-                drawChart(x+23+94, 12);
-                drawChart(x+27+94, 9);
+                drawChart(x+3+94, day0);
+                drawChart(x+7+94, day1);
+                drawChart(x+11+94, day2);
+                drawChart(x+15+94, day3);
+                drawChart(x+19+94, day4);
+                drawChart(x+23+94, day5);
+                drawChart(x+27+94, day6);
                 
                 dotmatrix.sendframe();
                 
@@ -550,9 +676,9 @@ int stringToInt(String string) {
   return atoi(buffer);
 }
 
-void drawChart(byte x, byte pixel) {
-  dotmatrix.rect(x, pixel, x+2, 15, GREEN);
-  if(pixel < 14)
-    dotmatrix.line(x+1, pixel+1, x+1, 14, BLACK);
-  dotmatrix.line(x+3, pixel, x+3, 15, BLACK);
+void drawChart(byte x, byte height) {
+  dotmatrix.rect(x, 16-height, x+2, 15, GREEN);
+  if(height > 2)
+    dotmatrix.line(x+1, 17-height, x+1, 14, BLACK);
+  dotmatrix.line(x+3, 16-height, x+3, 15, BLACK);
 }
