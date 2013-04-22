@@ -29,6 +29,7 @@
 #include <Ethernet.h>
 #include <ht1632c.h>
 #include <TinkerKit.h>
+#include <avr/wdt.h>
 
 #define NODEBUG
 
@@ -67,7 +68,7 @@ IPAddress subnet(255, 255, 0, 0);
 // initialize the library instance:
 EthernetClient client;
 
-const int requestInterval = 10000;     // delay between requests
+const int requestInterval = 7000;     // delay between requests
 
 char serverName[] = "api.baptistegaultier.fr";  // Your favorite API server
 
@@ -79,8 +80,6 @@ char temperature[3];
 char low[3];
 char high[3];
 char nextBus[3];
-char bikesAvailable[3];
-char unreadEmails[3];
 byte day0;
 byte day1;
 byte day2;
@@ -91,13 +90,11 @@ byte day6;
 
 boolean readingTime = false;
 boolean readingBus = false;
-boolean readingBikes = false;
 boolean readingTodayIcon = false;
 boolean readingTemperature = false;
 boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
-boolean readingEmails = false;
 boolean readingDay0 = false;
 boolean readingDay1 = false;
 boolean readingDay2 = false;
@@ -118,11 +115,6 @@ uint16_t sprites[5][9] =
 
 // bus sprite
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
-// bike sprite
-uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
-// email sprite
-uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
-
 
 void setup() {
   // reserve space for the strings:
@@ -157,6 +149,8 @@ void setup() {
   /*Serial.print("My address: ");
   Serial.println(Ethernet.localIP());*/
   #endif
+  
+  wdt_enable(WDTO_8S);
   
   // connect to API server:
   connectToServer();
@@ -219,42 +213,6 @@ void loop() {
           nextBus[0] = content.charAt(0);
           nextBus[1] = content.charAt(1);
           nextBus[2] = '\0';
-        }
-      }
-      
-      if (currentLine.endsWith("<bikesavailable>")) {
-        readingBikes = true; 
-        content = "";
-      }
-
-      if (readingBikes) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        }
-        else {
-          readingBikes = false;
-          bikesAvailable[0] = content.charAt(0);
-          bikesAvailable[1] = content.charAt(1);
-          bikesAvailable[2] = '\0';
-        }
-      }
-      
-      if (currentLine.endsWith("<unreademails>")) {
-        readingEmails = true; 
-        content = "";
-      }
-
-      if (readingEmails) {
-        if (inChar != '<') {
-          if (inChar != '>')
-            content += inChar;
-        }
-        else {
-          readingEmails = false;
-          unreadEmails[0] = content.charAt(0);
-          unreadEmails[1] = content.charAt(1);
-          unreadEmails[2] = '\0';
         }
       }
       
@@ -464,7 +422,7 @@ void loop() {
             indoorTemperature = therm.getCelsius();
             itoa(indoorTemperature, indoorTemperatureString, 10);
             
-            for (int x = 32; x > -128; x--) {
+            for (int x = 32; x > -96; x--) {
               adjustBrightness();
               
               // first screen : current weather condition 32→0
@@ -516,63 +474,35 @@ void loop() {
               }
               
               //fourth screen : bikes available and energy chart
-              if(x <= -33) {        
-                
+              if(x <= -33) {
                 // bus
                 if(nextBus[0] == '-')
-                  dotmatrix.putchar(x+80, 9, '<', GREEN);
+                  dotmatrix.putchar(x+80, 2, '<', GREEN);
                 else
-                  dotmatrix.putchar(x+80, 9, nextBus[0], GREEN);
+                  dotmatrix.putchar(x+80, 2, nextBus[0], GREEN);
                   
                 if(nextBus[1] == '\0')
-                  dotmatrix.putchar(x+85, 9, '\'', GREEN);
+                  dotmatrix.putchar(x+85, 2, '\'', GREEN);
                 else {
-                  dotmatrix.putchar(x+85, 9, nextBus[1], GREEN);
-                  dotmatrix.putchar(x+85, 9, '\'', GREEN);
+                  dotmatrix.putchar(x+85, 2, nextBus[1], GREEN);
+                  dotmatrix.putchar(x+90, 2, '\'', GREEN);
                 }
                 
-                dotmatrix.putbitmap(x+67, 7, busSprite, 9, 9, ORANGE);
+                dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
                 
-                // email
+                printTime(x+95);
                 
-                dotmatrix.putbitmap(x+66, 0, emailSprite, 9, 6, ORANGE);
-                dotmatrix.putchar(x+75, 0, ' ', ORANGE);
-                
-                if(unreadEmails[1] == '\0')
-                  dotmatrix.putchar(x+85, 0, ' ', GREEN);
-                else
-                  dotmatrix.putchar(x+85, 0, unreadEmails[1], GREEN);
-                
-                dotmatrix.putchar(x+80, 0, unreadEmails[0], GREEN);
-                
-                //bike
-                dotmatrix.putbitmap(x+97, 0, bikeSprite, 12, 9, ORANGE);
-                
-                if(bikesAvailable[1] == '\0') {
-                  color = bikesAvailable[0] == '0' ? color = RED : color = ORANGE;
-                }
-                else {
-                  color = GREEN;
-                  dotmatrix.putchar(x+117, 2, bikesAvailable[1], color);
-                }
-                
-                dotmatrix.putchar(x+109, 2, ' ', color);
-                
-                dotmatrix.putchar(x+112, 2, bikesAvailable[0], color);
-                
-                printTime(x+127);
-                
-                drawChart(x+3+94, day0);
-                drawChart(x+7+94, day1);
-                drawChart(x+11+94, day2);
-                drawChart(x+15+94, day3);
-                drawChart(x+19+94, day4);
-                drawChart(x+23+94, day5);
-                drawChart(x+27+94, day6);
+                drawChart(x+3+62, day0);
+                drawChart(x+7+62, day1);
+                drawChart(x+11+62, day2);
+                drawChart(x+15+62, day3);
+                drawChart(x+19+62, day4);
+                drawChart(x+23+62, day5);
+                drawChart(x+27+62, day6);
                 
                 dotmatrix.sendframe();
                 
-                if(x == -63 || x == -95) {
+                if(x == -63) {
                   waitAWhile();
                   waitAWhile();
                 }
@@ -597,6 +527,7 @@ void loop() {
     else {
       printTime(0);
       dotmatrix.sendframe();
+      wdt_reset();
       delay(requestInterval);
       if(button.get())
         scrolling = !scrolling;
@@ -652,6 +583,8 @@ void printTime(int x) {
 
 
 void adjustBrightness() {
+  // reset the watchdog timer
+  wdt_reset();
   // read the analog in value:
   brightnessValue = (ldr.get() + previousBrightnessValue) / 2;
   pwm = map(brightnessValue, 0, 1023, 0, 15);
