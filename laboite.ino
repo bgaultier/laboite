@@ -11,7 +11,7 @@
  * Automatic screen brightness adjusting
  * Stop scrolling function
  
- Apps supported (more infos here http://laboite.cc/apps )
+ Apps supported ( more info: http://laboite.cc/apps )
  * Time
  * Weather
  * Bus
@@ -35,13 +35,20 @@
  This code is in the public domain.
  
  */
- 
+// uncomment if you want to enable debug
+#define DEBUG
+// uncomment if you want to enable dotmatrix
+#define HT1632C
+
 #include <SPI.h>
 #include <Ethernet.h>
+#include <TinkerKit.h>
+#ifdef HT1632C
+#include <ht1632c.h>
+#endif
 #include <avr/wdt.h>
 
-
-// Enter a MAC address and IP address for your controller below.
+// enter a MAC address and IP address for your controller below.
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
@@ -56,9 +63,6 @@ const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
 char apikey[] = "964de680";              // your device API key
-
-// uncomment if you want to enable debug
-#define DEBUG
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -96,13 +100,44 @@ boolean bikesEnabled = false;
 boolean emailsEnabled = false;
 boolean weatherEnabled = false;
 
+TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
+TKThermistor therm(I1);            // thermistor used for indoor temperature
+TKButton button(I2);               // button used to start/stop scrolling
+
+
+#ifdef HT1632C
+// initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
+ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
+
+// weather app sprites:
+uint16_t sprites[5][9] =
+{
+  { 0x0100, 0x0100, 0x2008, 0x1390, 0x0440, 0x0820, 0x682c, 0x0820, 0x0440 },
+  { 0x0000, 0x01c0, 0x0230, 0x1c08, 0x2208, 0x4004, 0x4004, 0x3ff8, 0x0000 },
+  { 0x01c0, 0x0230, 0x1c08, 0x2208, 0x4004, 0x4004, 0x3ff8, 0x1500, 0x1500 },
+  { 0x0000, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x0000 },
+  { 0x0540, 0x0380, 0x1110, 0x0920, 0x1ff0, 0x0920, 0x1110, 0x0380, 0x0540 }
+};
+// bus app sprite:
+uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
+// bikes app sprite:
+uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
+// email sprite:
+uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
+
+int brightnessValue = 0;              // value read from the LDR
+int previousBrightnessValue = 512;    // previous value of brightness
+
+boolean scrolling = true;             // value modified when button is pressed
+
+byte pwm = 8;                         // value output to the PWM (analog out)
+#endif
 
 void setup() {
   // reserve space:
   currentLine.reserve(128);
   
   // initialize serial:
-  
   #ifdef DEBUG
   Serial.begin(9600);
   #endif
@@ -132,6 +167,13 @@ void setup() {
   // enable the watchdog timer (8 seconds)
   wdt_enable(WDTO_8S);
   
+  #ifdef HT1632C
+  // initialize dotmatrix:
+  dotmatrix.clear();
+  // dotmatrix brightness
+  dotmatrix.pwm(pwm);
+  #endif
+  
   // connect to API server:
   connectToServer();
 }
@@ -145,6 +187,55 @@ void loop()
       // parse json file coming from API server
       parseJSON();
       client.stop();
+      
+      #ifdef HT1632C
+      // if !scrolling only time will be shown
+      if(scrolling) {
+        printTime(0);
+        // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
+        indoorTemperature = therm.readCelsius();
+        itoa(indoorTemperature, indoorTemperatureString, 10);
+        
+        for (int x = 32; x > -96; x--) {
+          adjustBrightness();
+          
+          scrollFirstPanel(x);
+          scrollSecondPanel(x);
+          scrollThirdPanel(x);
+          scrollFourthPanel(x);
+          
+          dotmatrix.sendframe();
+          
+          if(x == -63) {
+            waitAWhile();
+            waitAWhile();
+          }
+          
+          delay(50);
+        }
+        if(button.read())
+          scrolling = !scrolling;
+      }
+    }
+  }
+  else {
+    if(scrolling) {
+      // if you're not connected and you're scrolling
+      // then attempt to connect again:
+      connectToServer();
+    }
+    else {
+      printTime(0);
+      dotmatrix.sendframe();
+      for (byte i = 0; i < 5; i++) {
+        wdt_reset();
+        delay(requestInterval/4);
+      }
+      
+      if(button.read())
+        scrolling = !scrolling;
+      connectToServer();
+      #endif
     }
   }
 }
