@@ -1,17 +1,26 @@
 /*
 
-  laboite v2.5
+  laboite v3.0
+ This Arduino firmware is part of laboite project http://laboite.cc/help
+ It is a connected device displaying a lot of information (A LOT !) coming from an
+ Internet server with a laboite web app deployed (e.g. http://laboite.cc/ ).
  
  Key Features:
+ * Connects to laboite-webapp to retrive apps data
  * Indoor temperature
- * 2 days weather forecasts
  * Automatic screen brightness adjusting
- * Clock synchronization (NTP)
- * Weather forecast icons (sunny, cloudy, rain, snow, fog)
- * Next bus arrival information from Keolis real-time API http://data.keolis-rennes.com/
- * Number of available bikes LE vélo STAR from Keolis real-time API
- * Number of unread mails
- * Energy history charts from past 7 days (emoncms)
+ * Stop scrolling function
+ 
+ Apps supported (more infos here http://laboite.cc/apps )
+ * Time
+ * Weather
+ * Bus
+ * Bikes
+ * Energy
+ * Waves
+ * Messages
+ * Coffees
+ * Emails
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
@@ -20,35 +29,19 @@
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 22 Apr 2013
+ modified 24 Jul 2013
  by Baptiste Gaultier
+ 
+ This code is in the public domain.
  
  */
  
 #include <SPI.h>
 #include <Ethernet.h>
-#include <ht1632c.h>
-#include <TinkerKit.h>
 #include <avr/wdt.h>
 
-#define NODEBUG
-
-// initialize the dotmatrix with the numbers of the interface pins (data→7, wr →6, clk→4, cs→5)
-ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
-
-TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
-TKThermistor therm(I1);            // thermistor used for indoor temperature
-TKButton button(I2);               // button used to start/stop scrolling
-
-boolean scrolling = true;          // value modified when button is pressed
-
-int brightnessValue = 0;           // value read from the LDR
-int previousBrightnessValue;       // previous value of brightness
-
-byte pwm = 8;                      // value output to the PWM (analog out)
 
 // Enter a MAC address and IP address for your controller below.
-// The IP address will be dependent on your local network:
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 
 // fill in an available IP address on your network here,
@@ -56,21 +49,25 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
 IPAddress ip(169, 254, 0, 64);
 IPAddress subnet(255, 255, 0, 0);
 
-
 // initialize the library instance:
 EthernetClient client;
 
-const int requestInterval = 16000;     // delay between requests
+const int requestInterval = 16000;       // delay between requests
 
-char serverName[] = "api.baptistegaultier.fr";  // Your favorite API server
+char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
+char apikey[] = "964de680";              // your device API key
 
-// Variables used to parse the XML from emoncms
+// uncomment if you want to enable debug
+#define DEBUG
 
-String currentLine = "";            // string to hold the text from server
+String currentLine = "";                 // string to hold the text from server
 
 // variables used to display infos
 char hour[3];
 char minutes[3];
+char bus[3];
+char bikes[3];
+char emails[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
@@ -79,57 +76,60 @@ byte indoorTemperature;
 char temperature[3];
 char low[3];
 char high[3];
-char nextBus[3];
-byte kWhdHistory[7];
 
-// weather forecast sprites:
-uint16_t sprites[5][9] =
-{
-  { 0x0100, 0x0100, 0x2008, 0x1390, 0x0440, 0x0820, 0x682c, 0x0820, 0x0440 },
-  { 0x0000, 0x01c0, 0x0230, 0x1c08, 0x2208, 0x4004, 0x4004, 0x3ff8, 0x0000 },
-  { 0x01c0, 0x0230, 0x1c08, 0x2208, 0x4004, 0x4004, 0x3ff8, 0x1500, 0x1500 },
-  { 0x0000, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x0000 },
-  { 0x0540, 0x0380, 0x1110, 0x0920, 0x1ff0, 0x0920, 0x1110, 0x0380, 0x0540 }
-};
+// parser variables
+boolean readingTime = false;
+boolean readingBus = false;
+boolean readingBikes = false;
+boolean readingEmails = false;
+boolean readingTodayIcon = false;
+boolean todayIconRead = false;
+boolean readingTemperature = false;
+boolean readingTomorrowIcon = false;
+boolean readingLow = false;
+boolean readingHigh = false;
 
-// bus sprite
-uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
+// apps variables
+boolean timeEnabled = false;
+boolean busEnabled = false;
+boolean bikesEnabled = false;
+boolean emailsEnabled = false;
+boolean weatherEnabled = false;
+
 
 void setup() {
-  // reserve space for the strings:
-  currentLine.reserve(32);
-  
-  // Dotmatrix brightness and font
-  dotmatrix.setfont(FONT_5x7);
-  dotmatrix.pwm(pwm);
+  // reserve space:
+  currentLine.reserve(128);
   
   // initialize serial:
+  
   #ifdef DEBUG
   Serial.begin(9600);
   #endif
-  // initialize dotmatrix:
-  dotmatrix.clear();
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v2.5 starting...");
+  Serial.println("laboite v3.0 starting...");
+  #endif
+
+  // attempt a DHCP connection:
+  #ifdef DEBUG
+  Serial.println("Attempting to get an IP address using DHCP:");
   #endif
   
-  Ethernet.begin(mac);
-  /*
-  // attempt a DHCP connection:
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
+    #ifdef DEBUG
+    Serial.println("failed to get an IP address using DHCP, trying manually");
+    #endif
     Ethernet.begin(mac, ip, subnet);
   }
-  */
-  // print your local IP address:
   #ifdef DEBUG
-  Serial.print("My address: ");
+  Serial.print("My address:");
   Serial.println(Ethernet.localIP());
   #endif
   
-  // Enable the watchdog timer (8 seconds)
+  // enable the watchdog timer (8 seconds)
   wdt_enable(WDTO_8S);
   
   // connect to API server:
@@ -138,58 +138,13 @@ void setup() {
 
 
 
-void loop() {
+void loop()
+{
   if (client.connected()) {
     if (client.available()) {
-      parseXML();
+      // parse json file coming from API server
+      parseJSON();
       client.stop();
-      
-      if(scrolling) {
-        printTime(0);
-        // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-        indoorTemperature = therm.getCelsius();
-        itoa(indoorTemperature, indoorTemperatureString, 10);
-        
-        for (int x = 32; x > -96; x--) {
-          adjustBrightness();
-          
-          scrollFirstPanel(x);
-          scrollSecondPanel(x);
-          scrollThirdPanel(x);
-          scrollFourthPanel(x);
-          
-          dotmatrix.sendframe();
-          
-          if(x == -63) {
-            waitAWhile();
-            waitAWhile();
-          }
-          
-          delay(50);
-        }
-        if(button.get())
-          scrolling = !scrolling;
-      }
-    }
-  }
-  else {
-    if(scrolling) {
-      // if you're not connected and you're scrolling
-      // then attempt to connect again:
-      connectToServer();
-    }
-    else {
-      printTime(0);
-      dotmatrix.sendframe();
-      for (byte i = 0; i < 5; i++) {
-        wdt_reset();
-        delay(requestInterval/4);
-      }
-      
-      if(button.get())
-        scrolling = !scrolling;
-      connectToServer();
     }
   }
 }
-
