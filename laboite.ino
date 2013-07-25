@@ -36,7 +36,7 @@
  
  */
 // uncomment if you want to enable debug
-#define DEBUG
+//#define DEBUG
 // uncomment if you want to enable dotmatrix
 #define HT1632C
 
@@ -122,8 +122,10 @@ uint16_t sprites[5][9] =
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
 // bikes app sprite:
 uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
-// email sprite:
+// emails app sprite:
 uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
+// coffees app sprite
+uint16_t coffeeSprite[8] = {0x4800, 0x2400, 0x4800, 0xff00, 0x8500, 0x8600, 0x8400, 0x7800};
 
 int brightnessValue = 0;              // value read from the LDR
 int previousBrightnessValue = 512;    // previous value of brightness
@@ -172,6 +174,8 @@ void setup() {
   dotmatrix.clear();
   // dotmatrix brightness
   dotmatrix.pwm(pwm);
+  // dotmatrix font
+  dotmatrix.setfont(FONT_5x7);
   #endif
   
   // connect to API server:
@@ -191,7 +195,8 @@ void loop()
       #ifdef HT1632C
       // if !scrolling only time will be shown
       if(scrolling) {
-        printTime(0);
+        if(timeEnabled)
+          printTime(0);
         // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
         indoorTemperature = therm.readCelsius();
         itoa(indoorTemperature, indoorTemperatureString, 10);

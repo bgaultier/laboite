@@ -52,7 +52,7 @@ boolean parseJSON() {
   
     if (readingTime) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -84,7 +84,7 @@ boolean parseJSON() {
   
     if (readingBus) {
        if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -109,7 +109,7 @@ boolean parseJSON() {
   
     if (readingBikes) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -134,7 +134,7 @@ boolean parseJSON() {
   
     if (readingEmails) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -160,7 +160,7 @@ boolean parseJSON() {
   
     if (readingTodayIcon) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -176,7 +176,7 @@ boolean parseJSON() {
   
     if (readingTemperature) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -194,7 +194,7 @@ boolean parseJSON() {
   
     if (readingTomorrowIcon) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -210,7 +210,7 @@ boolean parseJSON() {
   
     if (readingLow) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -228,7 +228,7 @@ boolean parseJSON() {
   
     if (readingHigh) {
       if (inChar != ',' && inChar != '}') {
-        if (inChar != '\"' && inChar != ':')
+        if (inChar != '"' && inChar != ':')
         content += inChar;
       }
       else {
@@ -350,7 +350,8 @@ void scrollThirdPanel(int x) {
   //third panel : email and next bus arrival
   if(x >= -63 && x < -32) {
     printTemperature(x+49, high[0], high[1], GREEN);
-    printTime(x+32);
+    if(timeEnabled)
+      printTime(x+32);
   }
 }
 
@@ -372,7 +373,8 @@ void scrollFourthPanel(int x) {
     
     dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
     
-    printTime(x+95);
+    if(timeEnabled)
+      printTime(x+95);
   }
 }
             
