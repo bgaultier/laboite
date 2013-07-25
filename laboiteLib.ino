@@ -22,6 +22,8 @@ void connectToServer() {
 }   
 
 boolean parseJSON() {
+  // make sure all apps are not enabled
+  resetApps();
   String content = "";
   
   while(client.available()) {
@@ -256,6 +258,15 @@ boolean parseJSON() {
   }
 }
 
+void resetApps() {
+  timeEnabled = false;
+  busEnabled = false;
+  bikesEnabled = false;
+  emailsEnabled = false;
+  weatherEnabled = false;
+  coffeesEnabled = false;
+}
+
 int stringToInt(String string) {
   char buffer[8];
   string.toCharArray(buffer, string.length()+1);
@@ -304,50 +315,56 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
 }
 
 void scrollFirstPanel(int x) {
-  // first panel : current weather condition 32→0
-  if(x > -16) {
-    dotmatrix.putchar(x+12, 9, ' ', RED);
-    color = todayIcon == 0 ? color = ORANGE : color = RED;
-    dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+  if(weatherEnabled) {
+    // first panel : current weather condition 32→0
+    if(x > -16) {
+      dotmatrix.putchar(x+12, 9, ' ', RED);
+      color = todayIcon == 0 ? color = ORANGE : color = RED;
+      dotmatrix.putbitmap(x, 7, sprites[todayIcon],16,9, color);
+    }
+    
+    if(x >= 0) {
+      printTemperature(x+17, temperature[0], temperature[1], RED);
+      dotmatrix.sendframe();
+    }
+    
+    if(x == 0) {
+      waitAWhile();
+      printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+      dotmatrix.sendframe();
+      waitAWhile();
+    }
   }
-  
-  if(x >= 0) {
-    printTemperature(x+17, temperature[0], temperature[1], RED);
-    dotmatrix.sendframe();
-  }
-  
-  if(x == 0) {
-    waitAWhile();
-    printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-    dotmatrix.sendframe();
-    waitAWhile();
-  }
+  else
+    x=-32;
 }
 
 void scrollSecondPanel(int x) {
-  // second panel : tomorrow weather condition 0→-32
-  if(x <= 1 && x >= -48) {
-    dotmatrix.putchar(x+44, 9, ' ', RED);
-    color = tomorrowIcon == 0 ? color = ORANGE : color = RED;
-    dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
-  }
-  
-  if(x >= -32 && x < 0) {
-    printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
-    printTemperature(x+49, low[0], low[1], RED);
-    dotmatrix.sendframe();
-  }
-  
-  if(x == -32) {
-    waitAWhile();
-    printTemperature(x+49, high[0], high[1], GREEN);
-    dotmatrix.sendframe();
-    waitAWhile();
+  if(weatherEnabled) {
+    // second panel : tomorrow weather condition 0→-32
+    if(x <= 1 && x >= -48) {
+      dotmatrix.putchar(x+44, 9, ' ', RED);
+      color = tomorrowIcon == 0 ? color = ORANGE : color = RED;
+      dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
+    }
+    
+    if(x >= -32 && x < 0) {
+      printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+      printTemperature(x+49, low[0], low[1], RED);
+      dotmatrix.sendframe();
+    }
+    
+    if(x == -32) {
+      waitAWhile();
+      printTemperature(x+49, high[0], high[1], GREEN);
+      dotmatrix.sendframe();
+      waitAWhile();
+    }
   }
 }
 
 void scrollThirdPanel(int x) {
-  //third panel : email and next bus arrival
+  //third panel : bus and bikes -32→-64
   if(x >= -63 && x < -32) {
     printTemperature(x+49, high[0], high[1], GREEN);
     if(timeEnabled)
@@ -356,25 +373,58 @@ void scrollThirdPanel(int x) {
 }
 
 void scrollFourthPanel(int x) {
-  //fourth panel : bikes available and energy chart
+  //fourth panel : coffees and energy -64→-96
   if(x <= -33) {
-    // bus
-    if(bus[0] == '-')
-      dotmatrix.putchar(x+80, 2, '<', GREEN);
-    else
-      dotmatrix.putchar(x+80, 2, bus[0], GREEN);
+    if(!busEnabled && !bikesEnabled)
+      x=-96;
+    
+    // bus app
+    if(busEnabled) {
+      if(bus[0] == '-')
+        dotmatrix.putchar(x+68, 10, '<', GREEN);
+      else
+        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
+        
+      if(bus[1] == '\0')
+        dotmatrix.putchar(x+73, 10, '\'', GREEN);
+      else {
+        dotmatrix.putchar(x+73, 10, bus[1], GREEN);
+        dotmatrix.putchar(x+78, 10, '\'', GREEN);
+      }
       
-    if(bus[1] == '\0')
-      dotmatrix.putchar(x+85, 2, '\'', GREEN);
-    else {
-      dotmatrix.putchar(x+85, 2, bus[1], GREEN);
-      dotmatrix.putchar(x+90, 2, '\'', GREEN);
+      dotmatrix.putbitmap(x+68, 0, busSprite, 9, 9, ORANGE);
     }
     
-    dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
+    // bikes app
+    if(bikesEnabled) {
+      dotmatrix.putchar(x+92, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+92, 3, ' ', ORANGE);
+      dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
+      
+      if(bikes[1] != '\0')
+        dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
+      dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
+    }
+    
+    // coffees app
+    /*if(coffeesEnabled) {
+      if([1] != '\0')
+        dotmatrix.putchar(x+131, 2, coffees[1], GREEN);
+      dotmatrix.putbitmap(x+115, 0, coffeeSprite, 16, 8, ORANGE);
+      dotmatrix.putchar(x+123, 2, ' ', GREEN);
+      dotmatrix.putchar(x+126, 2, coffees[0], GREEN);
+    }
+    */
+    
+    // energy app
+    /*if(energyEnabled) {
+      for(int i = 0; i < 7; i++) {
+        drawChart(x + 111 + (i*4), kWhdHistory[i]);
+      }
+    }*/
     
     if(timeEnabled)
-      printTime(x+95);
+      printTime(x+97);
   }
 }
             

@@ -99,6 +99,7 @@ boolean busEnabled = false;
 boolean bikesEnabled = false;
 boolean emailsEnabled = false;
 boolean weatherEnabled = false;
+boolean coffeesEnabled = false;
 
 TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
 TKThermistor therm(I1);            // thermistor used for indoor temperature
@@ -201,7 +202,7 @@ void loop()
         indoorTemperature = therm.readCelsius();
         itoa(indoorTemperature, indoorTemperatureString, 10);
         
-        for (int x = 32; x > -96; x--) {
+        for (int x = 32; x > -98; x--) {
           adjustBrightness();
           
           scrollFirstPanel(x);
