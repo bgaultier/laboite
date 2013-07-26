@@ -36,9 +36,9 @@
  
  */
 // uncomment if you want to enable debug
-//#define DEBUG
+#define DEBUG
 // uncomment if you want to enable dotmatrix
-#define HT1632C
+//#define HT1632C
 
 #include <SPI.h>
 #include <Ethernet.h>
@@ -72,6 +72,7 @@ char minutes[3];
 char bus[3];
 char bikes[3];
 char emails[3];
+char coffees[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
@@ -86,6 +87,7 @@ boolean readingTime = false;
 boolean readingBus = false;
 boolean readingBikes = false;
 boolean readingEmails = false;
+boolean readingCoffees = false;
 boolean readingTodayIcon = false;
 boolean todayIconRead = false;
 boolean readingTemperature = false;

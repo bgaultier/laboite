@@ -104,6 +104,7 @@ boolean parseJSON() {
       }
     }
     
+    // fetch Bikes app data
     if (currentLine.endsWith("\"bikes\":")) {
       readingBikes = true;
       content = "";
@@ -129,6 +130,7 @@ boolean parseJSON() {
       }
     }
     
+    // fetch Emails app data
     if (currentLine.endsWith("\"emails\":")) {
       readingEmails = true;
       content = "";
@@ -150,6 +152,32 @@ boolean parseJSON() {
         #ifdef DEBUG
         Serial.print("Emails: ");
         Serial.println(emails);
+        #endif
+      }
+    }
+    
+    // fetch Coffees app data
+    if (currentLine.endsWith("\"coffees\":")) {
+      readingCoffees = true;
+      content = "";
+    }
+  
+    if (readingCoffees) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingCoffees = false;
+        coffees[0] = content.charAt(0);
+        coffees[1] = content.charAt(1);
+        coffees[2] = '\0';
+        
+        coffeesEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Coffees: ");
+        Serial.println(coffees);
         #endif
       }
     }
