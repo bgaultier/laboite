@@ -182,6 +182,131 @@ boolean parseJSON() {
       }
     }
     
+    // fetch Energy app data
+    if (currentLine.endsWith("\"day0\":")) {
+      readingDay0 = true;
+      content = "";
+    }
+  
+    if (readingDay0) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay0 = false;
+        energy[0] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day1\":")) {
+      readingDay1 = true;
+      content = "";
+    }
+  
+    if (readingDay1) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay1 = false;
+        energy[1] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day2\":")) {
+      readingDay2 = true;
+      content = "";
+    }
+  
+    if (readingDay2) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay2 = false;
+        energy[2] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day3\":")) {
+      readingDay3 = true;
+      content = "";
+    }
+  
+    if (readingDay3) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay3 = false;
+        energy[3] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day4\":")) {
+      readingDay4 = true;
+      content = "";
+    }
+  
+    if (readingDay4) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay4 = false;
+        energy[4] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day5\":")) {
+      readingDay5 = true;
+      content = "";
+    }
+  
+    if (readingDay5) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay5 = false;
+        energy[5] = stringToInt(content);
+      }
+    }
+    
+    if (currentLine.endsWith("\"day6\":")) {
+      readingDay6 = true;
+      content = "";
+    }
+  
+    if (readingDay6) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingDay6 = false;
+        energy[6] = stringToInt(content);
+        
+        energyEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Energy: ");
+        for(int i = 0; i < 7; i++) {
+          Serial.print(energy[i]);
+          if(i != 6)
+            Serial.print(", ");
+        }
+        Serial.println();
+        #endif
+      }
+    }
+    
     // fetch Weather app data
     if (currentLine.endsWith("\"icon\":")) {
       readingTodayIcon = true;
@@ -293,6 +418,7 @@ void resetApps() {
   emailsEnabled = false;
   weatherEnabled = false;
   coffeesEnabled = false;
+  energyEnabled = false;
 }
 
 int stringToInt(String string) {
@@ -315,6 +441,7 @@ void adjustBrightness() {
   // reset the watchdog timer
   wdt_reset();
   // read the analog in value:
+  #ifdef SENSORS
   brightnessValue = (ldr.read() + previousBrightnessValue) / 2;
   pwm = map(brightnessValue, 0, 1023, 0, 15);
   dotmatrix.pwm(pwm);
@@ -323,6 +450,7 @@ void adjustBrightness() {
   // check if scrolling button has been pressed
   if(button.read())
     scrolling = !scrolling;
+  #endif
 }
 
 void waitAWhile() {
@@ -404,7 +532,7 @@ void scrollFourthPanel(int x) {
   //fourth panel : coffees and energy -64→-96
   if(x <= -33) {
     if(!busEnabled && !bikesEnabled)
-      x=-96;
+      x-=32;
     
     // bus app
     if(busEnabled) {
@@ -420,7 +548,7 @@ void scrollFourthPanel(int x) {
         dotmatrix.putchar(x+78, 10, '\'', GREEN);
       }
       
-      dotmatrix.putbitmap(x+68, 0, busSprite, 9, 9, ORANGE);
+      dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
     }
     
     // bikes app
@@ -434,25 +562,28 @@ void scrollFourthPanel(int x) {
       dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
     }
     
+    if(!coffeesEnabled && !energyEnabled)
+      x=-32;
+    
     // coffees app
-    /*if(coffeesEnabled) {
-      if([1] != '\0')
-        dotmatrix.putchar(x+131, 2, coffees[1], GREEN);
-      dotmatrix.putbitmap(x+115, 0, coffeeSprite, 16, 8, ORANGE);
-      dotmatrix.putchar(x+123, 2, ' ', GREEN);
-      dotmatrix.putchar(x+126, 2, coffees[0], GREEN);
+    if(coffeesEnabled) {
+      if(coffees[1] != '\0')
+        dotmatrix.putchar(x+116, 2, coffees[1], GREEN);
+      dotmatrix.putbitmap(x+99, 0, coffeeSprite, 16, 8, ORANGE);
+      dotmatrix.putchar(x+108, 2, ' ', GREEN);
+      dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
     }
-    */
+    
     
     // energy app
-    /*if(energyEnabled) {
+    if(energyEnabled) {
       for(int i = 0; i < 7; i++) {
-        drawChart(x + 111 + (i*4), kWhdHistory[i]);
+        drawChart(x + 97 + (i*4), energy[i]);
       }
-    }*/
+    }
     
     if(timeEnabled)
-      printTime(x+97);
+      printTime(x+129);
   }
 }
             

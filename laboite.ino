@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.0
+  laboite v3.1
  This Arduino firmware is part of laboite project http://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. http://laboite.cc/ ).
@@ -36,20 +36,24 @@
  
  */
 // uncomment if you want to enable debug
-#define DEBUG
+//#define DEBUG
 // uncomment if you want to enable dotmatrix
-//#define HT1632C
+#define HT1632C
+// uncomment if you want to enable TinkerKit! sensors
+//#define SENSORS
 
 #include <SPI.h>
 #include <Ethernet.h>
+#ifdef SENSORS
 #include <TinkerKit.h>
+#endif
 #ifdef HT1632C
 #include <ht1632c.h>
 #endif
 #include <avr/wdt.h>
 
 // enter a MAC address and IP address for your controller below.
-byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x65, 0xA4 };
+byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x73, 0xD5 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
@@ -62,7 +66,7 @@ EthernetClient client;
 const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "964de680";              // your device API key
+char apikey[] = "61c119ce";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -81,6 +85,7 @@ byte indoorTemperature;
 char temperature[3];
 char low[3];
 char high[3];
+byte energy[7]; 
 
 // parser variables
 boolean readingTime = false;
@@ -94,6 +99,13 @@ boolean readingTemperature = false;
 boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
+boolean readingDay0 = false;
+boolean readingDay1 = false;
+boolean readingDay2 = false;
+boolean readingDay3 = false;
+boolean readingDay4 = false;
+boolean readingDay5 = false;
+boolean readingDay6 = false;
 
 // apps variables
 boolean timeEnabled = false;
@@ -102,10 +114,13 @@ boolean bikesEnabled = false;
 boolean emailsEnabled = false;
 boolean weatherEnabled = false;
 boolean coffeesEnabled = false;
+boolean energyEnabled = false;
 
+#ifdef SENSORS
 TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
 TKThermistor therm(I1);            // thermistor used for indoor temperature
 TKButton button(I2);               // button used to start/stop scrolling
+#endif
 
 
 #ifdef HT1632C
@@ -135,7 +150,7 @@ int previousBrightnessValue = 512;    // previous value of brightness
 
 boolean scrolling = true;             // value modified when button is pressed
 
-byte pwm = 8;                         // value output to the PWM (analog out)
+byte pwm = 15;                         // value output to the PWM (analog out)
 #endif
 
 void setup() {
@@ -149,7 +164,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.0 starting...");
+  Serial.println("laboite v3.1 starting...");
   #endif
 
   // attempt a DHCP connection:
@@ -201,10 +216,20 @@ void loop()
         if(timeEnabled)
           printTime(0);
         // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
+        #ifdef SENSORS
         indoorTemperature = therm.readCelsius();
         itoa(indoorTemperature, indoorTemperatureString, 10);
+        #endif
         
-        for (int x = 32; x > -98; x--) {
+        // compute the max number of pixels we have to scroll
+        int maxScroll = -130;
+        if(!busEnabled && !bikesEnabled)
+          maxScroll+=32;
+        if(!coffeesEnabled && !energyEnabled)
+          maxScroll+=32;
+        
+        
+        for (int x = 32; x > maxScroll; x--) {
           adjustBrightness();
           
           scrollFirstPanel(x);
@@ -214,15 +239,17 @@ void loop()
           
           dotmatrix.sendframe();
           
-          if(x == -63) {
+          if(x == -63 || x == -95) {
             waitAWhile();
             waitAWhile();
-          }
+          }         
           
           delay(50);
         }
+        #ifdef SENSORS
         if(button.read())
           scrolling = !scrolling;
+        #endif
       }
     }
   }
@@ -239,9 +266,10 @@ void loop()
         wdt_reset();
         delay(requestInterval/4);
       }
-      
+      #ifdef SENSORS
       if(button.read())
         scrolling = !scrolling;
+      #endif
       connectToServer();
       #endif
     }
