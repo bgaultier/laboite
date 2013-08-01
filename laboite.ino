@@ -53,7 +53,7 @@
 #include <avr/wdt.h>
 
 // enter a MAC address and IP address for your controller below.
-byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x73, 0xD5 };
+byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
@@ -85,7 +85,8 @@ byte indoorTemperature;
 char temperature[3];
 char low[3];
 char high[3];
-byte energy[7]; 
+byte energy[7];
+char message[140];
 
 // parser variables
 boolean readingTime = false;
@@ -106,6 +107,7 @@ boolean readingDay3 = false;
 boolean readingDay4 = false;
 boolean readingDay5 = false;
 boolean readingDay6 = false;
+boolean readingMessage = false;
 
 // apps variables
 boolean timeEnabled = false;
@@ -115,6 +117,7 @@ boolean emailsEnabled = false;
 boolean weatherEnabled = false;
 boolean coffeesEnabled = false;
 boolean energyEnabled = false;
+boolean messagesEnabled = false;
 
 #ifdef SENSORS
 TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
@@ -155,7 +158,7 @@ byte pwm = 15;                         // value output to the PWM (analog out)
 
 void setup() {
   // reserve space:
-  currentLine.reserve(128);
+  currentLine.reserve(256);
   
   // initialize serial:
   #ifdef DEBUG
@@ -232,6 +235,7 @@ void loop()
         for (int x = 32; x > maxScroll; x--) {
           adjustBrightness();
           
+          // scroll through apps
           scrollFirstPanel(x);
           scrollSecondPanel(x);
           scrollThirdPanel(x);
@@ -246,6 +250,8 @@ void loop()
           
           delay(50);
         }
+        scrollFifthPanel();
+        
         #ifdef SENSORS
         if(button.read())
           scrolling = !scrolling;

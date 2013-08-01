@@ -307,6 +307,29 @@ boolean parseJSON() {
       }
     }
     
+    if (currentLine.endsWith("\"messages\":")) {
+      readingMessage = true;
+      content = "";
+    }
+  
+    if (readingMessage) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingMessage = false;
+        content.toCharArray(message, content.length() + 1);
+        
+        messagesEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Messages: ");
+        Serial.println(message);
+        #endif
+      }
+    }
+    
     // fetch Weather app data
     if (currentLine.endsWith("\"icon\":")) {
       readingTodayIcon = true;
@@ -419,6 +442,7 @@ void resetApps() {
   weatherEnabled = false;
   coffeesEnabled = false;
   energyEnabled = false;
+  messagesEnabled = false;
 }
 
 int stringToInt(String string) {
@@ -561,7 +585,9 @@ void scrollFourthPanel(int x) {
         dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
       dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
     }
-    
+  }
+  
+  if(x <= -63) {
     if(!coffeesEnabled && !energyEnabled)
       x=-32;
     
@@ -585,6 +611,12 @@ void scrollFourthPanel(int x) {
     if(timeEnabled)
       printTime(x+129);
   }
+}
+
+void scrollFifthPanel() {
+  // fifth panel : message
+  if(messagesEnabled)
+    dotmatrix.hscrolltext(8, message, GREEN, 50, 1, LEFT);
 }
             
 void drawChart(byte x, byte height) {
