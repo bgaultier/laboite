@@ -226,6 +226,8 @@ void loop()
         
         // compute the max number of pixels we have to scroll
         int maxScroll = -130;
+        if(!weatherEnabled)
+          maxScroll+=32;
         if(!busEnabled && !bikesEnabled)
           maxScroll+=32;
         if(!coffeesEnabled && !energyEnabled)

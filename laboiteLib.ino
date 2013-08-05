@@ -546,7 +546,8 @@ void scrollSecondPanel(int x) {
 void scrollThirdPanel(int x) {
   //third panel : bus and bikes -32→-64
   if(x >= -63 && x < -32) {
-    printTemperature(x+49, high[0], high[1], GREEN);
+    if(weatherEnabled)
+      printTemperature(x+49, high[0], high[1], GREEN);
     if(timeEnabled)
       printTime(x+32);
   }
@@ -616,7 +617,7 @@ void scrollFourthPanel(int x) {
 void scrollFifthPanel() {
   // fifth panel : message
   if(messagesEnabled)
-    dotmatrix.hscrolltext(8, message, GREEN, 50, 1, LEFT);
+    dotmatrix.hscrolltext(9, message, GREEN, 35, 1, LEFT);
 }
             
 void drawChart(byte x, byte height) {
