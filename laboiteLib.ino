@@ -562,15 +562,15 @@ void scrollFourthPanel(int x) {
     // bus app
     if(busEnabled) {
       if(bus[0] == '-')
-        dotmatrix.putchar(x+68, 10, '<', GREEN);
+        dotmatrix.putchar(x+67, 10, '<', GREEN);
       else
-        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
+        dotmatrix.putchar(x+67, 10, bus[0], GREEN);
         
       if(bus[1] == '\0')
-        dotmatrix.putchar(x+73, 10, '\'', GREEN);
+        dotmatrix.putchar(x+72, 10, '\'', GREEN);
       else {
-        dotmatrix.putchar(x+73, 10, bus[1], GREEN);
-        dotmatrix.putchar(x+78, 10, '\'', GREEN);
+        dotmatrix.putchar(x+72, 10, bus[1], GREEN);
+        dotmatrix.putchar(x+77, 10, '\'', GREEN);
       }
       
       dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
