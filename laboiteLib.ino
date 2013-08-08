@@ -319,7 +319,8 @@ boolean parseJSON() {
       }
       else {
         readingMessage = false;
-        content.toCharArray(message, content.length() + 1);
+        content.toCharArray(message, min(content.length() + 1, 140));
+        message[139] = '\0';
         
         messagesEnabled = true;
         
