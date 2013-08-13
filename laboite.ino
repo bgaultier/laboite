@@ -40,11 +40,13 @@
 // uncomment if you want to enable dotmatrix
 #define HT1632C
 // uncomment if you want to enable TinkerKit! sensors
-//#define SENSORS
+//#define TINKERKIT
+// uncomment if you want to enable classic sensors
+#define SENSORS
 
 #include <SPI.h>
 #include <Ethernet.h>
-#ifdef SENSORS
+#ifdef TINKERKIT
 #include <TinkerKit.h>
 #endif
 #ifdef HT1632C
@@ -66,7 +68,7 @@ EthernetClient client;
 const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "61c119ce";              // your device API key
+char apikey[] = "964de680";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -119,12 +121,19 @@ boolean coffeesEnabled = false;
 boolean energyEnabled = false;
 boolean messagesEnabled = false;
 
-#ifdef SENSORS
+#ifdef TINKERKIT
 TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
 TKThermistor therm(I1);            // thermistor used for indoor temperature
-TKButton button(I2);               // button used to start/stop scrolling
+TKButton button(I2);               // pushbutton used to start/stop scrolling
 #endif
 
+#ifdef SENSORS
+// constants won't change. They're used here to 
+// set pin numbers:
+const byte ldrPin = A0;            // ldr used to adjust dotmatrix brightness
+const byte thermistorPin = A1;     // thermistor used for indoor temperature
+const byte buttonPin = A2;         // pushbutton used to start/stop scrolling
+#endif
 
 #ifdef HT1632C
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
@@ -175,6 +184,11 @@ void setup() {
   Serial.println("Attempting to get an IP address using DHCP:");
   #endif
   
+  #ifdef SENSORS
+  Ethernet.begin(mac);
+  #endif
+  
+  #ifndef SENSORS
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
@@ -182,6 +196,8 @@ void setup() {
     #endif
     Ethernet.begin(mac, ip, subnet);
   }
+  #endif
+  
   #ifdef DEBUG
   Serial.print("My address:");
   Serial.println(Ethernet.localIP());
@@ -197,6 +213,12 @@ void setup() {
   dotmatrix.pwm(pwm);
   // dotmatrix font
   dotmatrix.setfont(FONT_5x7);
+  #endif
+  
+  #ifdef SENSORS
+  pinMode(ldrPin, INPUT);
+  pinMode(thermistorPin, INPUT);
+  pinMode(buttonPin, INPUT);
   #endif
   
   // connect to API server:
@@ -219,9 +241,12 @@ void loop()
         if(timeEnabled)
           printTime(0);
         // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-        #ifdef SENSORS
+        #ifdef TINKERKIT
         indoorTemperature = therm.readCelsius();
         itoa(indoorTemperature, indoorTemperatureString, 10);
+        #endif
+        #ifdef SENSORS
+        itoa(getTemperature(), indoorTemperatureString, 10);
         #endif
         
         // compute the max number of pixels we have to scroll
@@ -254,8 +279,12 @@ void loop()
         }
         scrollFifthPanel();
         
-        #ifdef SENSORS
+        #ifdef TINKERKIT
         if(button.read())
+          scrolling = !scrolling;
+        #endif
+        #ifdef SENSORS
+        if (digitalRead(buttonPin) == HIGH)
           scrolling = !scrolling;
         #endif
       }
@@ -274,8 +303,12 @@ void loop()
         wdt_reset();
         delay(requestInterval/4);
       }
-      #ifdef SENSORS
+      #ifdef TINKERKIT
       if(button.read())
+        scrolling = !scrolling;
+      #endif
+      #ifdef SENSORS
+      if (digitalRead(buttonPin) == HIGH)
         scrolling = !scrolling;
       #endif
       connectToServer();

@@ -466,7 +466,7 @@ void adjustBrightness() {
   // reset the watchdog timer
   wdt_reset();
   // read the analog in value:
-  #ifdef SENSORS
+  #ifdef TINKERKIT
   brightnessValue = (ldr.read() + previousBrightnessValue) / 2;
   pwm = map(brightnessValue, 0, 1023, 0, 15);
   dotmatrix.pwm(pwm);
@@ -476,12 +476,21 @@ void adjustBrightness() {
   if(button.read())
     scrolling = !scrolling;
   #endif
+  
+  #ifdef SENSORS
+  brightnessValue = (analogRead(ldrPin) + previousBrightnessValue) / 2;
+  pwm = (brightnessValue*15)/1023;
+  dotmatrix.pwm(pwm);
+  
+  previousBrightnessValue = brightnessValue;
+  #endif
+  
 }
 
 void waitAWhile() {
   for (int i = 0; i < 16; i++) {
     adjustBrightness();
-    delay(50);
+    delay(30);
   }
 }
 void printTemperature(int x, char firstDigit, char secondDigit, byte color)
@@ -628,3 +637,15 @@ void drawChart(byte x, byte height) {
   dotmatrix.line(x+3, 16-height, x+3, 15, BLACK);
 }
 #endif
+
+int getTemperature() {
+  // smallest footprint for temperature reading http://playground.arduino.cc/ComponentLib/Thermistor3
+  return ((analogRead(thermistorPin) - 250) * (441 - 14) / (700 - 250) + 250)/10;
+  // please have a look at TinkerKit! library for more info : http://www.tinkerkit.com/library/
+  /*
+  // too heavy
+  int Rthermistor = 10000 * (1023 / analogRead(thermistorPin) - 1);
+  int temperatureC = 3950 / (log(Rthermistor * 120 )) ;
+  
+  return temperatureC - 273;*/
+}
