@@ -97,7 +97,6 @@ boolean readingBikes = false;
 boolean readingEmails = false;
 boolean readingCoffees = false;
 boolean readingTodayIcon = false;
-boolean todayIconRead = false;
 boolean readingTemperature = false;
 boolean readingTomorrowIcon = false;
 boolean readingLow = false;

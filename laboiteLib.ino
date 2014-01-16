@@ -332,7 +332,7 @@ boolean parseJSON() {
     }
     
     // fetch Weather app data
-    if (currentLine.endsWith("\"icon\":")) {
+    if (currentLine.endsWith("y\":{\"icon\":")) {
       readingTodayIcon = true;
       content = "";
     }
@@ -344,7 +344,6 @@ boolean parseJSON() {
       }
       else {
         readingTodayIcon = false;
-        todayIconRead = true;
         todayIcon = stringToInt(content);
       }
     }
@@ -367,7 +366,7 @@ boolean parseJSON() {
       }
     }
     
-    if (currentLine.endsWith("\"icon\":") && todayIconRead) {
+    if (currentLine.endsWith("w\":{\"icon\":")) {
       readingTomorrowIcon = true;
       content = "";
     }
@@ -379,7 +378,6 @@ boolean parseJSON() {
       }
       else {
         readingTomorrowIcon = false;
-        todayIconRead = false;
         tomorrowIcon = stringToInt(content);
       }
     }
