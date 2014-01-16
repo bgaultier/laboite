@@ -344,6 +344,7 @@ boolean parseJSON() {
       }
       else {
         readingTodayIcon = false;
+        todayIconRead = true;
         todayIcon = stringToInt(content);
       }
     }
@@ -378,6 +379,7 @@ boolean parseJSON() {
       }
       else {
         readingTomorrowIcon = false;
+        todayIconRead = false;
         tomorrowIcon = stringToInt(content);
       }
     }
