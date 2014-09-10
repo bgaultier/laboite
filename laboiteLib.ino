@@ -499,9 +499,9 @@ void printTemperature(int x, char firstDigit, char secondDigit, byte color)
     secondDigit = firstDigit;
     firstDigit = ' ';
   }
-  dotmatrix.putchar(x, 9, firstDigit, color);
-  dotmatrix.putchar(x+5, 9, secondDigit, color);
-  dotmatrix.putchar(x+10, 9, '*', color);
+  dotmatrix.putchar(x, 10, firstDigit, color);
+  dotmatrix.putchar(x+5, 10, secondDigit, color);
+  dotmatrix.putchar(x+10, 10, '*', color);
 }
 
 void scrollFirstPanel(int x) {
@@ -519,8 +519,13 @@ void scrollFirstPanel(int x) {
     }
     
     if(x == 0) {
+      #ifdef SENSOR
+      #ifdef TINKERKIT
       waitAWhile();
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+      dotmatrix.sendframe();
+      #endif
+      #endif
       dotmatrix.sendframe();
       waitAWhile();
     }
@@ -539,7 +544,12 @@ void scrollSecondPanel(int x) {
     }
     
     if(x >= -32 && x < 0) {
+      #ifdef SENSOR
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
+      #else
+      printTemperature(x+17, temperature[0], temperature[1], RED);
+      #endif
+       
       printTemperature(x+49, low[0], low[1], RED);
       dotmatrix.sendframe();
     }
@@ -638,6 +648,7 @@ void drawChart(byte x, byte height) {
 }
 #endif
 
+#ifdef SENSOR
 int getTemperature() {
   // smallest footprint for temperature reading http://playground.arduino.cc/ComponentLib/Thermistor3
   return ((analogRead(thermistorPin) - 250) * (441 - 14) / (700 - 250) + 250)/10;
@@ -649,3 +660,4 @@ int getTemperature() {
   
   return temperatureC - 273;*/
 }
+#endif

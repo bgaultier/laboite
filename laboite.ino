@@ -42,7 +42,7 @@
 // uncomment if you want to enable TinkerKit! sensors
 //#define TINKERKIT
 // uncomment if you want to enable classic sensors
-#define SENSORS
+//#define SENSORS
 
 #include <SPI.h>
 #include <Ethernet.h>
@@ -82,8 +82,12 @@ char coffees[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
+#ifdef SENSOR
+#ifdef TINKERKIT
 char indoorTemperatureString[3];
 byte indoorTemperature;
+#endif
+#endif
 char temperature[3];
 char low[3];
 char high[3];
