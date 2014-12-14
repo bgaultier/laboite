@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.1
+  laboite v3.2
  This Arduino firmware is part of laboite project http://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. http://laboite.cc/ ).
@@ -24,12 +24,13 @@
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
+ * or ESP8266 Wifi module (not stable yet) attached to pins 0 and 1
  * Sure Electronics 3216 LED matrix attached to pins 4, 5, 6, 7
  * TinkerKit LDR, Thermistor and Button modules on I0, I1, I2
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 24 Jul 2013
+ modified 14 Dec 2014
  by Baptiste Gaultier
  
  This code is in the public domain.
@@ -37,6 +38,8 @@
  */
 // uncomment if you want to enable debug
 //#define DEBUG
+// uncomment if you want to enable Ethernet
+#define ETHERNET
 // uncomment if you want to enable dotmatrix
 #define HT1632C
 // uncomment if you want to enable TinkerKit! sensors
@@ -44,8 +47,10 @@
 // uncomment if you want to enable classic sensors
 //#define SENSORS
 
+#ifdef ETHERNET
 #include <SPI.h>
 #include <Ethernet.h>
+#endif
 #ifdef TINKERKIT
 #include <TinkerKit.h>
 #endif
@@ -54,6 +59,7 @@
 #endif
 #include <avr/wdt.h>
 
+#ifdef ETHERNET
 // enter a MAC address and IP address for your controller below.
 byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 
@@ -64,6 +70,7 @@ IPAddress subnet(255, 255, 0, 0);
 
 // initialize the library instance:
 EthernetClient client;
+#endif
 
 const int requestInterval = 16000;       // delay between requests
 
@@ -179,7 +186,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.1 starting...");
+  Serial.println("laboite v3.2 starting...");
   #endif
 
   // attempt a DHCP connection:
@@ -188,10 +195,9 @@ void setup() {
   #endif
   
   #ifdef SENSORS
+  #ifdef ETHERNET
   Ethernet.begin(mac);
-  #endif
   
-  #ifndef SENSORS
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
@@ -200,10 +206,13 @@ void setup() {
     Ethernet.begin(mac, ip, subnet);
   }
   #endif
+  #endif
   
   #ifdef DEBUG
+  #ifdef ETHERNET
   Serial.print("My address:");
   Serial.println(Ethernet.localIP());
+  #endif
   #endif
   
   // enable the watchdog timer (8 seconds)
