@@ -29,7 +29,9 @@ boolean parseJSON() {
   while(client.available()) {
     // read incoming bytes:
     char inChar = client.read();
+    #ifdef WATCHDOG
     wdt_reset();
+    #endif
     
     #ifdef DEBUG
     // debugging purposes only:
@@ -307,6 +309,54 @@ boolean parseJSON() {
       }
     }
     
+    if (currentLine.endsWith("\"dtstart\":")) {
+      readingEventStart = true;
+      content = "";
+    }
+  
+    if (readingEventStart) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingEventStart = false;
+        content.toCharArray(eventStart, 5);
+        eventStart[4] = '\0';
+        
+        agendaEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Event start: ");
+        Serial.println(eventStart);
+        #endif
+      }
+    }
+    
+    if (currentLine.endsWith("\"summary\":")) {
+      readingEventSummary = true;
+      content = "";
+    }
+  
+    if (readingEventSummary) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingEventSummary = false;
+        content.toCharArray(eventSummary, min(content.length() + 1, 64));
+        eventSummary[64] = '\0';
+        
+        agendaEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Event summary: ");
+        Serial.println(eventSummary);
+        #endif
+      }
+    }
+    
     if (currentLine.endsWith("\"messages\":")) {
       readingMessage = true;
       content = "";
@@ -444,6 +494,7 @@ void resetApps() {
   coffeesEnabled = false;
   energyEnabled = false;
   messagesEnabled = false;
+  agendaEnabled = false;
 }
 
 int stringToInt(String string) {
@@ -464,7 +515,10 @@ void printTime(int x) {
 
 void adjustBrightness() {
   // reset the watchdog timer
+  #ifdef WATCHDOG
   wdt_reset();
+  #endif
+  
   // read the analog in value:
   #ifdef TINKERKIT
   brightnessValue = (ldr.read() + previousBrightnessValue) / 2;
@@ -488,7 +542,7 @@ void adjustBrightness() {
 }
 
 void waitAWhile() {
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 8; i++) {
     adjustBrightness();
     delay(30);
   }
@@ -573,24 +627,22 @@ void scrollThirdPanel(int x) {
   }
 }
 
+
 void scrollFourthPanel(int x) {
   //fourth panel : coffees and energy -64→-96
   if(x <= -33) {
-    if(!busEnabled && !bikesEnabled)
-      x-=32;
-    
     // bus app
     if(busEnabled) {
       if(bus[0] == '-')
-        dotmatrix.putchar(x+67, 10, '<', GREEN);
-      else
-        dotmatrix.putchar(x+67, 10, bus[0], GREEN);
-        
-      if(bus[1] == '\0')
-        dotmatrix.putchar(x+72, 10, '\'', GREEN);
+        bus[0] = '<';
+      if(bus[1] == '\0') {
+        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
+        dotmatrix.putchar(x+73, 10, '\'', GREEN);
+      }
       else {
-        dotmatrix.putchar(x+72, 10, bus[1], GREEN);
-        dotmatrix.putchar(x+77, 10, '\'', GREEN);
+        dotmatrix.putchar(x+66, 10, bus[0], GREEN);
+        dotmatrix.putchar(x+71, 10, bus[1], GREEN);
+        dotmatrix.putchar(x+76, 10, '\'', GREEN);
       }
       
       dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
@@ -602,15 +654,25 @@ void scrollFourthPanel(int x) {
       dotmatrix.putchar(x+92, 3, ' ', ORANGE);
       dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
       
-      if(bikes[1] != '\0')
+      if(bikes[1] != '\0') {
+        dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
         dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
-      dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
+      }
+      else
+        dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
     }
   }
   
   if(x <= -63) {
-    if(!coffeesEnabled && !energyEnabled)
-      x=-32;
+    // emails app
+    if(emailsEnabled) {
+      if(emails[1] != '\0')
+        dotmatrix.putchar(x+111, 1, emails[1], GREEN);
+      dotmatrix.putbitmap(x+95, 1, emailSprite, 9, 6, ORANGE);
+      //dotmatrix.putchar(x+97, 7, ' ', GREEN);
+      dotmatrix.putchar(x+104, 1, ' ', GREEN);
+      dotmatrix.putchar(x+106, 1, emails[0], GREEN);
+    }
     
     // coffees app
     if(coffeesEnabled) {
@@ -621,7 +683,6 @@ void scrollFourthPanel(int x) {
       dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
     }
     
-    
     // energy app
     if(energyEnabled) {
       for(int i = 0; i < 7; i++) {
@@ -629,15 +690,47 @@ void scrollFourthPanel(int x) {
       }
     }
     
+    if(x == -63 || x == -95) {
+      waitAWhile();
+      waitAWhile();
+    }
+    
     if(timeEnabled)
       printTime(x+129);
   }
 }
 
-void scrollFifthPanel() {
+void scrollFifthPanel(int x) {
+  //fourth panel : coffees and energy -64→-96
+  if(x <= -63) {
+    // agenda app
+    if(agendaEnabled) {
+      dotmatrix.putchar(x+133, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+138, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+142, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+147, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+152, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+157, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+133, 1, ' ', ORANGE);
+      dotmatrix.putbitmap(x+129, 0, calendarSprite,8,8, RED);
+      dotmatrix.putchar(x+138, 1, eventStart[0], ORANGE);
+      dotmatrix.putchar(x+143, 1, eventStart[1], ORANGE);
+      dotmatrix.putchar(x+147, 1, ':', ORANGE);
+      dotmatrix.putchar(x+151, 1, eventStart[2], ORANGE);
+      dotmatrix.putchar(x+156, 1, eventStart[3], ORANGE);
+      
+      if(x == -129)
+        dotmatrix.hscrolltext(9, eventSummary, ORANGE, 10, 1, LEFT);
+      if(timeEnabled)
+        printTime(x+161);
+    }
+  }
+}
+
+void scrollSixthPanel() {
   // fifth panel : message
   if(messagesEnabled)
-    dotmatrix.hscrolltext(9, message, GREEN, 35, 1, LEFT);
+    dotmatrix.hscrolltext(9, message, GREEN, 10, 1, LEFT);
 }
             
 void drawChart(byte x, byte height) {
@@ -648,7 +741,7 @@ void drawChart(byte x, byte height) {
 }
 #endif
 
-#ifdef SENSOR
+#ifdef SENSORS
 int getTemperature() {
   // smallest footprint for temperature reading http://playground.arduino.cc/ComponentLib/Thermistor3
   return ((analogRead(thermistorPin) - 250) * (441 - 14) / (700 - 250) + 250)/10;

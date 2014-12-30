@@ -1,17 +1,17 @@
 /*
 
-  laboite v3.2
- This Arduino firmware is part of laboite project http://laboite.cc/help
+  laboite v3.3
+ This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
- Internet server with a laboite web app deployed (e.g. http://laboite.cc/ ).
+ Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
  
  Key Features:
- * Connects to laboite-webapp to retrive apps data
- * Indoor temperature
- * Automatic screen brightness adjusting
- * Stop scrolling function
+ * Connects to laboite-webapp to retrieve apps data
+ * Indoor temperature (optionnal, uncomment SENSORS to enable it)
+ * Automatic screen brightness adjusting  (optionnal, uncomment SENSORS to enable it)
+ * Stop scrolling function (optionnal, uncomment SENSORS to enable it)
  
- Apps supported ( more info: http://laboite.cc/apps )
+ Apps supported ( more info: https://laboite.cc/apps )
  * Time
  * Weather
  * Bus
@@ -21,23 +21,24 @@
  * Messages
  * Coffees
  * Emails
+ * RATP
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13
  * or ESP8266 Wifi module (not stable yet) attached to pins 0 and 1
  * Sure Electronics 3216 LED matrix attached to pins 4, 5, 6, 7
- * TinkerKit LDR, Thermistor and Button modules on I0, I1, I2
+ * TinkerKit LDR, Thermistor and Button modules on I0, I1, I2 (optionnal, uncomment SENSORS to enable it)
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 14 Dec 2014
+ modified 30 Dec 2014
  by Baptiste Gaultier
  
  This code is in the public domain.
  
  */
 // uncomment if you want to enable debug
-//#define DEBUG
+#define DEBUG
 // uncomment if you want to enable Ethernet
 #define ETHERNET
 // uncomment if you want to enable dotmatrix
@@ -46,6 +47,8 @@
 //#define TINKERKIT
 // uncomment if you want to enable classic sensors
 //#define SENSORS
+// uncomment if you want to enable the AVR Watchdog
+#define WATCHDOG
 
 #ifdef ETHERNET
 #include <SPI.h>
@@ -57,7 +60,9 @@
 #ifdef HT1632C
 #include <ht1632c.h>
 #endif
+#ifdef WATCHDOG
 #include <avr/wdt.h>
+#endif
 
 #ifdef ETHERNET
 // enter a MAC address and IP address for your controller below.
@@ -65,8 +70,9 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 
 // fill in an available IP address on your network here,
 // for auto-configuration:
-IPAddress ip(169, 254, 0, 64);
-IPAddress subnet(255, 255, 0, 0);
+IPAddress ip(192, 168, 2, 64);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress gateway(192, 168, 2, 1);
 
 // initialize the library instance:
 EthernetClient client;
@@ -89,17 +95,21 @@ char coffees[3];
 byte todayIcon;
 byte tomorrowIcon;
 byte color;
-#ifdef SENSOR
-#ifdef TINKERKIT
+#ifdef SENSORS
 char indoorTemperatureString[3];
 byte indoorTemperature;
 #endif
+#ifdef TINKERKIT
+char indoorTemperatureString[3];
+byte indoorTemperature;
 #endif
 char temperature[3];
 char low[3];
 char high[3];
 byte energy[7];
 char message[140];
+char eventStart[5];
+char eventSummary[64];
 
 // parser variables
 boolean readingTime = false;
@@ -120,6 +130,8 @@ boolean readingDay4 = false;
 boolean readingDay5 = false;
 boolean readingDay6 = false;
 boolean readingMessage = false;
+boolean readingEventStart = false;
+boolean readingEventSummary = false;
 
 // apps variables
 boolean timeEnabled = false;
@@ -130,6 +142,7 @@ boolean weatherEnabled = false;
 boolean coffeesEnabled = false;
 boolean energyEnabled = false;
 boolean messagesEnabled = false;
+boolean agendaEnabled = false;
 
 #ifdef TINKERKIT
 TKLightSensor ldr(I0);             // ldr used to adjust dotmatrix brightness
@@ -148,6 +161,8 @@ const byte buttonPin = A2;         // pushbutton used to start/stop scrolling
 #ifdef HT1632C
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
+// uncomment if you are using an Arduino MEGA
+//ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
 
 // weather app sprites:
 uint16_t sprites[5][9] =
@@ -166,6 +181,9 @@ uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd
 uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
 // coffees app sprite
 uint16_t coffeeSprite[8] = {0x4800, 0x2400, 0x4800, 0xff00, 0x8500, 0x8600, 0x8400, 0x7800};
+// agenda app sprite
+uint16_t calendarSprite[8] = { 0b01111111, 0b01111111, 0b01000001, 0b01001001, 0b01001001, 0b01001001, 0b01000001, 0b01111111 };
+
 
 int brightnessValue = 0;              // value read from the LDR
 int previousBrightnessValue = 512;    // previous value of brightness
@@ -186,26 +204,23 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.2 starting...");
+  Serial.println("laboite v3.3 starting...");
   #endif
 
-  // attempt a DHCP connection:
+  // attempt a DHCP connection:  
+  #ifdef ETHERNET
+  Ethernet.begin(mac, ip, dns, gateway);
   #ifdef DEBUG
-  Serial.println("Attempting to get an IP address using DHCP:");
+  Serial.println("Using DHCP increases the sketch size significantly so we have to specify an IP adress manually.");
   #endif
   
-  #ifdef SENSORS
-  #ifdef ETHERNET
-  Ethernet.begin(mac);
-  
-  if (!Ethernet.begin(mac)) {
+  /*if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
     Serial.println("failed to get an IP address using DHCP, trying manually");
     #endif
     Ethernet.begin(mac, ip, subnet);
-  }
-  #endif
+  }*/
   #endif
   
   #ifdef DEBUG
@@ -216,7 +231,9 @@ void setup() {
   #endif
   
   // enable the watchdog timer (8 seconds)
+  #ifdef WATCHDOG
   wdt_enable(WDTO_8S);
+  #endif
   
   #ifdef HT1632C
   // initialize dotmatrix:
@@ -261,17 +278,8 @@ void loop()
         itoa(getTemperature(), indoorTemperatureString, 10);
         #endif
         
-        // compute the max number of pixels we have to scroll
-        int maxScroll = -130;
-        if(!weatherEnabled)
-          maxScroll+=32;
-        if(!busEnabled && !bikesEnabled)
-          maxScroll+=32;
-        if(!coffeesEnabled && !energyEnabled)
-          maxScroll+=32;
         
-        
-        for (int x = 32; x > maxScroll; x--) {
+        for (int x = 32; x > -162; x--) {
           adjustBrightness();
           
           // scroll through apps
@@ -279,17 +287,20 @@ void loop()
           scrollSecondPanel(x);
           scrollThirdPanel(x);
           scrollFourthPanel(x);
+          if(agendaEnabled)
+            scrollFifthPanel(x);
+          else {
+            if(x == -129) {
+              dotmatrix.sendframe();
+              break;
+            }
+          }
           
           dotmatrix.sendframe();
           
-          if(x == -63 || x == -95) {
-            waitAWhile();
-            waitAWhile();
-          }         
-          
-          delay(50);
+          delay(30);
         }
-        scrollFifthPanel();
+        scrollSixthPanel();
         
         #ifdef TINKERKIT
         if(button.read())
@@ -312,7 +323,9 @@ void loop()
       printTime(0);
       dotmatrix.sendframe();
       for (byte i = 0; i < 5; i++) {
+        #ifdef WATCHDOG
         wdt_reset();
+        #endif
         delay(requestInterval/4);
       }
       #ifdef TINKERKIT
