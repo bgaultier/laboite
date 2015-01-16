@@ -48,7 +48,9 @@
 // uncomment if you want to enable classic sensors
 //#define SENSORS
 // uncomment if you want to enable the AVR Watchdog
-#define WATCHDOG
+//#define WATCHDOG
+// uncomment if you are uploading to a Arduino MEGA
+#define MEGA
 
 #ifdef ETHERNET
 #include <SPI.h>
@@ -81,7 +83,7 @@ EthernetClient client;
 const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "964de680";              // your device API key
+char apikey[] = "c859fd5a";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -159,10 +161,14 @@ const byte buttonPin = A2;         // pushbutton used to start/stop scrolling
 #endif
 
 #ifdef HT1632C
-// initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
+// initialize the dotmatrix with the numbers of the interface pins (data:7, wr:6, clk:4, cs:5)
+#ifndef MEGA
 ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
-// uncomment if you are using an Arduino MEGA
-//ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
+#endif
+#ifdef MEGA
+// initialize the dotmatrix with the numbers of the MEGA interface pins (data:22, wr:23, clk:25, cs:24)
+ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
+#endif
 
 // weather app sprites:
 uint16_t sprites[5][9] =
@@ -209,18 +215,22 @@ void setup() {
 
   // attempt a DHCP connection:  
   #ifdef ETHERNET
+  #ifndef MEGA
   Ethernet.begin(mac, ip, dns, gateway);
   #ifdef DEBUG
   Serial.println("Using DHCP increases the sketch size significantly so we have to specify an IP adress manually.");
   #endif
+  #endif
   
-  /*if (!Ethernet.begin(mac)) {
+  #ifdef MEGA
+  if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
     Serial.println("failed to get an IP address using DHCP, trying manually");
     #endif
     Ethernet.begin(mac, ip, subnet);
-  }*/
+  }
+  #endif
   #endif
   
   #ifdef DEBUG

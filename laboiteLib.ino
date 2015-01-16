@@ -573,7 +573,7 @@ void scrollFirstPanel(int x) {
     }
     
     if(x == 0) {
-      #ifdef SENSOR
+      #ifdef SENSORS
       #ifdef TINKERKIT
       waitAWhile();
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
@@ -598,7 +598,7 @@ void scrollSecondPanel(int x) {
     }
     
     if(x >= -32 && x < 0) {
-      #ifdef SENSOR
+      #ifdef SENSORS
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
       #else
       printTemperature(x+17, temperature[0], temperature[1], RED);
