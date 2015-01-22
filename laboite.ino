@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.3
+  laboite v3.4
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -50,7 +50,7 @@
 // uncomment if you want to enable the AVR Watchdog
 //#define WATCHDOG
 // uncomment if you are uploading to a Arduino MEGA
-#define MEGA
+//#define MEGA
 
 #ifdef ETHERNET
 #include <SPI.h>
@@ -210,7 +210,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.3 starting...");
+  Serial.println("laboite v3.4 starting...");
   #endif
 
   // attempt a DHCP connection:  
