@@ -309,54 +309,6 @@ boolean parseJSON() {
       }
     }
     
-    if (currentLine.endsWith("\"dtstart\":")) {
-      readingEventStart = true;
-      content = "";
-    }
-  
-    if (readingEventStart) {
-      if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingEventStart = false;
-        content.toCharArray(eventStart, 5);
-        eventStart[4] = '\0';
-        
-        agendaEnabled = true;
-        
-        #ifdef DEBUG
-        Serial.print("Event start: ");
-        Serial.println(eventStart);
-        #endif
-      }
-    }
-    
-    if (currentLine.endsWith("\"summary\":")) {
-      readingEventSummary = true;
-      content = "";
-    }
-  
-    if (readingEventSummary) {
-      if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingEventSummary = false;
-        content.toCharArray(eventSummary, min(content.length() + 1, 64));
-        eventSummary[64] = '\0';
-        
-        agendaEnabled = true;
-        
-        #ifdef DEBUG
-        Serial.print("Event summary: ");
-        Serial.println(eventSummary);
-        #endif
-      }
-    }
-    
     if (currentLine.endsWith("\"messages\":")) {
       readingMessage = true;
       content = "";
@@ -667,20 +619,11 @@ void scrollFourthPanel(int x) {
     // emails app
     if(emailsEnabled) {
       if(emails[1] != '\0')
-        dotmatrix.putchar(x+111, 1, emails[1], GREEN);
-      dotmatrix.putbitmap(x+95, 1, emailSprite, 9, 6, ORANGE);
+        dotmatrix.putchar(x+116, 1, emails[1], GREEN);
+      dotmatrix.putbitmap(x+100, 1, emailSprite, 9, 6, ORANGE);
       //dotmatrix.putchar(x+97, 7, ' ', GREEN);
-      dotmatrix.putchar(x+104, 1, ' ', GREEN);
-      dotmatrix.putchar(x+106, 1, emails[0], GREEN);
-    }
-    
-    // coffees app
-    if(coffeesEnabled) {
-      if(coffees[1] != '\0')
-        dotmatrix.putchar(x+116, 2, coffees[1], GREEN);
-      dotmatrix.putbitmap(x+99, 0, coffeeSprite, 16, 8, ORANGE);
-      dotmatrix.putchar(x+108, 2, ' ', GREEN);
-      dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
+      dotmatrix.putchar(x+109, 1, ' ', GREEN);
+      dotmatrix.putchar(x+111, 1, emails[0], GREEN);
     }
     
     // energy app
@@ -690,40 +633,13 @@ void scrollFourthPanel(int x) {
       }
     }
     
-    if(x == -63 || x == -95) {
+    if(x == -65 || x == -95) {
       waitAWhile();
       waitAWhile();
     }
     
     if(timeEnabled)
       printTime(x+129);
-  }
-}
-
-void scrollFifthPanel(int x) {
-  //fourth panel : coffees and energy -64→-96
-  if(x <= -63) {
-    // agenda app
-    if(agendaEnabled) {
-      dotmatrix.putchar(x+133, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+138, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+142, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+147, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+152, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+157, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+133, 1, ' ', ORANGE);
-      dotmatrix.putbitmap(x+129, 0, calendarSprite,8,8, RED);
-      dotmatrix.putchar(x+138, 1, eventStart[0], ORANGE);
-      dotmatrix.putchar(x+143, 1, eventStart[1], ORANGE);
-      dotmatrix.putchar(x+147, 1, ':', ORANGE);
-      dotmatrix.putchar(x+151, 1, eventStart[2], ORANGE);
-      dotmatrix.putchar(x+156, 1, eventStart[3], ORANGE);
-      
-      if(x == -129)
-        dotmatrix.hscrolltext(9, eventSummary, ORANGE, 10, 1, LEFT);
-      if(timeEnabled)
-        printTime(x+161);
-    }
   }
 }
 

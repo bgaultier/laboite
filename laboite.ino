@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.3
+  laboite v3.2.1
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -48,7 +48,7 @@
 // uncomment if you want to enable classic sensors
 //#define SENSORS
 // uncomment if you want to enable the AVR Watchdog
-#define WATCHDOG
+//#define WATCHDOG
 
 #ifdef ETHERNET
 #include <SPI.h>
@@ -160,9 +160,9 @@ const byte buttonPin = A2;         // pushbutton used to start/stop scrolling
 
 #ifdef HT1632C
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
-ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
+//ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 // uncomment if you are using an Arduino MEGA
-//ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
+ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
 
 // weather app sprites:
 uint16_t sprites[5][9] =
@@ -181,9 +181,6 @@ uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd
 uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
 // coffees app sprite
 uint16_t coffeeSprite[8] = {0x4800, 0x2400, 0x4800, 0xff00, 0x8500, 0x8600, 0x8400, 0x7800};
-// agenda app sprite
-uint16_t calendarSprite[8] = { 0b01111111, 0b01111111, 0b01000001, 0b01001001, 0b01001001, 0b01001001, 0b01000001, 0b01111111 };
-
 
 int brightnessValue = 0;              // value read from the LDR
 int previousBrightnessValue = 512;    // previous value of brightness
@@ -204,23 +201,18 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.3 starting...");
+  Serial.println("laboite v3.2.1 starting...");
   #endif
 
   // attempt a DHCP connection:  
   #ifdef ETHERNET
-  Ethernet.begin(mac, ip, dns, gateway);
-  #ifdef DEBUG
-  Serial.println("Using DHCP increases the sketch size significantly so we have to specify an IP adress manually.");
-  #endif
-  
-  /*if (!Ethernet.begin(mac)) {
+  if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
     Serial.println("failed to get an IP address using DHCP, trying manually");
     #endif
     Ethernet.begin(mac, ip, subnet);
-  }*/
+  }
   #endif
   
   #ifdef DEBUG
@@ -279,7 +271,7 @@ void loop()
         #endif
         
         
-        for (int x = 32; x > -162; x--) {
+        for (int x = 32; x > -130; x--) {
           adjustBrightness();
           
           // scroll through apps
@@ -287,14 +279,6 @@ void loop()
           scrollSecondPanel(x);
           scrollThirdPanel(x);
           scrollFourthPanel(x);
-          if(agendaEnabled)
-            scrollFifthPanel(x);
-          else {
-            if(x == -129) {
-              dotmatrix.sendframe();
-              break;
-            }
-          }
           
           dotmatrix.sendframe();
           
