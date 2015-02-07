@@ -1,6 +1,10 @@
 /*
 
+<<<<<<< HEAD
   laboite v3.2.1
+=======
+  laboite v3.4
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -49,6 +53,11 @@
 //#define SENSORS
 // uncomment if you want to enable the AVR Watchdog
 //#define WATCHDOG
+<<<<<<< HEAD
+=======
+// uncomment if you are uploading to a Arduino MEGA
+//#define MEGA
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
 
 #ifdef ETHERNET
 #include <SPI.h>
@@ -81,7 +90,7 @@ EthernetClient client;
 const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "964de680";              // your device API key
+char apikey[] = "c859fd5a";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -159,10 +168,21 @@ const byte buttonPin = A2;         // pushbutton used to start/stop scrolling
 #endif
 
 #ifdef HT1632C
+<<<<<<< HEAD
 // initialize the dotmatrix with the numbers of the interface pins (data→7, wr→6, clk→4, cs→5)
 //ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
 // uncomment if you are using an Arduino MEGA
 ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
+=======
+// initialize the dotmatrix with the numbers of the interface pins (data:7, wr:6, clk:4, cs:5)
+#ifndef MEGA
+ht1632c dotmatrix = ht1632c(&PORTD, 7, 6, 4, 5, GEOM_32x16, 2);
+#endif
+#ifdef MEGA
+// initialize the dotmatrix with the numbers of the MEGA interface pins (data:22, wr:23, clk:25, cs:24)
+ht1632c dotmatrix = ht1632c(&PORTA, 0, 1, 3, 2, GEOM_32x16, 2);
+#endif
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
 
 // weather app sprites:
 uint16_t sprites[5][9] =
@@ -201,11 +221,26 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
+<<<<<<< HEAD
   Serial.println("laboite v3.2.1 starting...");
+=======
+  Serial.println("laboite v3.4 starting...");
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
   #endif
 
   // attempt a DHCP connection:  
   #ifdef ETHERNET
+<<<<<<< HEAD
+=======
+  #ifndef MEGA
+  Ethernet.begin(mac, ip, dns, gateway);
+  #ifdef DEBUG
+  Serial.println("Using DHCP increases the sketch size significantly so we have to specify an IP adress manually.");
+  #endif
+  #endif
+  
+  #ifdef MEGA
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
   if (!Ethernet.begin(mac)) {
     // if DHCP fails, start with a hard-coded address:
     #ifdef DEBUG
@@ -213,6 +248,10 @@ void setup() {
     #endif
     Ethernet.begin(mac, ip, subnet);
   }
+<<<<<<< HEAD
+=======
+  #endif
+>>>>>>> c3c665790d59ad9bfa378865b6d49acffc89cd74
   #endif
   
   #ifdef DEBUG
