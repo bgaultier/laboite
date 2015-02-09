@@ -158,32 +158,6 @@ boolean parseJSON() {
       }
     }
     
-    // fetch Coffees app data
-    if (currentLine.endsWith("\"coffees\":")) {
-      readingCoffees = true;
-      content = "";
-    }
-  
-    if (readingCoffees) {
-       if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingCoffees = false;
-        coffees[0] = content.charAt(0);
-        coffees[1] = content.charAt(1);
-        coffees[2] = '\0';
-        
-        coffeesEnabled = true;
-        
-        #ifdef DEBUG
-        Serial.print("Coffees: ");
-        Serial.println(coffees);
-        #endif
-      }
-    }
-    
     // fetch Energy app data
     if (currentLine.endsWith("\"day0\":")) {
       readingDay0 = true;
@@ -443,10 +417,8 @@ void resetApps() {
   bikesEnabled = false;
   emailsEnabled = false;
   weatherEnabled = false;
-  coffeesEnabled = false;
   energyEnabled = false;
   messagesEnabled = false;
-  agendaEnabled = false;
 }
 
 int stringToInt(String string) {
@@ -525,7 +497,7 @@ void scrollFirstPanel(int x) {
     }
     
     if(x == 0) {
-      #ifdef SENSORS
+      #ifdef SENSOR
       #ifdef TINKERKIT
       waitAWhile();
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
@@ -550,7 +522,7 @@ void scrollSecondPanel(int x) {
     }
     
     if(x >= -32 && x < 0) {
-      #ifdef SENSORS
+      #ifdef SENSOR
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
       #else
       printTemperature(x+17, temperature[0], temperature[1], RED);
