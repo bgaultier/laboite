@@ -57,7 +57,7 @@ boolean parseJSON() {
     if (readingTime) {
       if (inChar != ',' && inChar != '}') {
         if (inChar != '"' && inChar != ':')
-        content += inChar;
+          content += inChar;
       }
       else {
         readingTime = false;
@@ -132,6 +132,35 @@ boolean parseJSON() {
       }
     }
     
+    #ifdef COFFEES
+    // fetch Coffees app data
+    if (currentLine.endsWith("\"coffees\":")) {
+      readingCoffees = true;
+      content = "";
+    }
+  
+    if (readingCoffees) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingCoffees = false;
+        coffees[0] = content.charAt(0);
+        coffees[1] = content.charAt(1);
+        coffees[2] = '\0';
+        
+        coffeesEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Coffees: ");
+        Serial.println(coffees);
+        #endif
+      }
+    }
+    #endif
+    
+    #ifdef EMAILS
     // fetch Emails app data
     if (currentLine.endsWith("\"emails\":")) {
       readingEmails = true;
@@ -157,8 +186,10 @@ boolean parseJSON() {
         #endif
       }
     }
+    #endif
     
     // fetch Energy app data
+    #ifdef ENERGY
     if (currentLine.endsWith("\"day0\":")) {
       readingDay0 = true;
       content = "";
@@ -167,7 +198,7 @@ boolean parseJSON() {
     if (readingDay0) {
        if (inChar != ',' && inChar != '}') {
         if (inChar != '"' && inChar != ':')
-        content += inChar;
+          content += inChar;
       }
       else {
         readingDay0 = false;
@@ -282,7 +313,65 @@ boolean parseJSON() {
         #endif
       }
     }
+    #endif
     
+    #ifdef AGENDA.
+    // fetch Agenda app data
+    if (currentLine.endsWith("\"dtstart\":")) {
+      readingEventStart = true;
+      content = "";
+    }
+  
+    if (readingEventStart) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingEventStart = false;
+        content.toCharArray(eventStart, 5);
+        eventStart[4] = '\0';
+        
+        agendaEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Event : ");
+        Serial.print(eventStart[0]);
+        Serial.print(eventStart[1]);
+        Serial.print(":");
+        Serial.print(eventStart[2]);
+        Serial.print(eventStart[3]);
+        Serial.print(", ");
+        #endif
+      }
+    }
+    
+    if (currentLine.endsWith("\"summary\":")) {
+      readingEventSummary = true;
+      content = "";
+    }
+  
+    if (readingEventSummary) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingEventSummary = false;
+        content.toCharArray(eventSummary, min(content.length() + 1, 64));
+        eventSummary[64] = '\0';
+        
+        agendaEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.println(eventSummary);
+        #endif
+      }
+    }
+    #endif
+    
+    #ifdef MESSAGES
+    // fetch Messages app data
     if (currentLine.endsWith("\"messages\":")) {
       readingMessage = true;
       content = "";
@@ -306,6 +395,7 @@ boolean parseJSON() {
         #endif
       }
     }
+    #endif
     
     // fetch Weather app data
     if (currentLine.endsWith("y\":{\"icon\":")) {
@@ -413,12 +503,22 @@ boolean parseJSON() {
 
 void resetApps() {
   timeEnabled = false;
+  weatherEnabled = false;
   busEnabled = false;
   bikesEnabled = false;
-  emailsEnabled = false;
-  weatherEnabled = false;
+  #ifdef ENERGY
   energyEnabled = false;
+  #endif
   messagesEnabled = false;
+  #ifdef COFFEES
+  coffeesEnabled = false;
+  #endif
+  #ifdef EMAILS
+  emailsEnabled = false;
+  #endif
+  #ifdef AGENDA
+  agendaEnabled = false;
+  #endif
 }
 
 int stringToInt(String string) {
@@ -444,17 +544,6 @@ void adjustBrightness() {
   #endif
   
   // read the analog in value:
-  #ifdef TINKERKIT
-  brightnessValue = (ldr.read() + previousBrightnessValue) / 2;
-  pwm = map(brightnessValue, 0, 1023, 0, 15);
-  dotmatrix.pwm(pwm);
-  previousBrightnessValue = brightnessValue;
-  
-  // check if scrolling button has been pressed
-  if(button.read())
-    scrolling = !scrolling;
-  #endif
-  
   #ifdef SENSORS
   brightnessValue = (analogRead(ldrPin) + previousBrightnessValue) / 2;
   pwm = (brightnessValue*15)/1023;
@@ -497,12 +586,10 @@ void scrollFirstPanel(int x) {
     }
     
     if(x == 0) {
-      #ifdef SENSOR
-      #ifdef TINKERKIT
+      #ifdef SENSORS
       waitAWhile();
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
       dotmatrix.sendframe();
-      #endif
       #endif
       dotmatrix.sendframe();
       waitAWhile();
@@ -522,7 +609,7 @@ void scrollSecondPanel(int x) {
     }
     
     if(x >= -32 && x < 0) {
-      #ifdef SENSOR
+      #ifdef SENSORS
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
       #else
       printTemperature(x+17, temperature[0], temperature[1], RED);
@@ -588,22 +675,36 @@ void scrollFourthPanel(int x) {
   }
   
   if(x <= -63) {
+    #ifdef EMAILS
     // emails app
     if(emailsEnabled) {
       if(emails[1] != '\0')
         dotmatrix.putchar(x+116, 1, emails[1], GREEN);
       dotmatrix.putbitmap(x+100, 1, emailSprite, 9, 6, ORANGE);
-      //dotmatrix.putchar(x+97, 7, ' ', GREEN);
       dotmatrix.putchar(x+109, 1, ' ', GREEN);
       dotmatrix.putchar(x+111, 1, emails[0], GREEN);
     }
+    #endif
+    
+    #ifdef COFFEES
+    // coffees app
+    if(coffeesEnabled) {
+      if(coffees[1] != '\0')
+        dotmatrix.putchar(x+116, 2, coffees[1], GREEN);
+      dotmatrix.putbitmap(x+99, 0, coffeeSprite, 16, 8, ORANGE);
+      dotmatrix.putchar(x+108, 2, ' ', GREEN);
+      dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
+    }
+    #endif
     
     // energy app
+    #ifdef ENERGY
     if(energyEnabled) {
       for(int i = 0; i < 7; i++) {
         drawChart(x + 97 + (i*4), energy[i]);
       }
     }
+    #endif
     
     if(x == -65 || x == -95) {
       waitAWhile();
@@ -615,18 +716,49 @@ void scrollFourthPanel(int x) {
   }
 }
 
+void scrollFifthPanel(int x) {
+  //fourth panel : coffees and energy -64→-96
+  if(x <= -63) {
+    // agenda app
+    if(agendaEnabled) {
+      dotmatrix.putchar(x+133, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+138, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+142, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+147, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+152, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+157, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+133, 1, ' ', ORANGE);
+      dotmatrix.putbitmap(x+129, 0, calendarSprite,8,8, RED);
+      dotmatrix.putchar(x+138, 1, eventStart[0], ORANGE);
+      dotmatrix.putchar(x+143, 1, eventStart[1], ORANGE);
+      dotmatrix.putchar(x+147, 1, ':', ORANGE);
+      dotmatrix.putchar(x+151, 1, eventStart[2], ORANGE);
+      dotmatrix.putchar(x+156, 1, eventStart[3], ORANGE);
+      
+      if(x == -129)
+        dotmatrix.hscrolltext(9, eventSummary, ORANGE, 10, 1, LEFT);
+      if(timeEnabled)
+        printTime(x+161);
+    }
+  }
+}
+
+#ifdef MESSAGES
 void scrollSixthPanel() {
   // fifth panel : message
   if(messagesEnabled)
     dotmatrix.hscrolltext(9, message, GREEN, 10, 1, LEFT);
 }
-            
+#endif
+
+#ifdef ENERGY
 void drawChart(byte x, byte height) {
   dotmatrix.rect(x, 16-height, x+2, 15, GREEN);
   if(height > 2)
     dotmatrix.line(x+1, 17-height, x+1, 14, BLACK);
   dotmatrix.line(x+3, 16-height, x+3, 15, BLACK);
 }
+#endif
 #endif
 
 #ifdef SENSORS
