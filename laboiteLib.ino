@@ -19,7 +19,7 @@ void connectToServer() {
     client.println("Connection: close");
     client.println();
   }
-}   
+}
 
 boolean parseJSON() {
   // make sure all apps are not enabled
@@ -315,7 +315,7 @@ boolean parseJSON() {
     }
     #endif
     
-    #ifdef AGENDA.
+    #ifdef AGENDA
     // fetch Agenda app data
     if (currentLine.endsWith("\"dtstart\":")) {
       readingEventStart = true;
@@ -392,6 +392,77 @@ boolean parseJSON() {
         #ifdef DEBUG
         Serial.print("Messages: ");
         Serial.println(message);
+        #endif
+      }
+    }
+    #endif
+    
+    #ifdef PARKING
+    // fetch Parking app data
+    if (currentLine.endsWith("\"spaces\":")) {
+      readingParkingSpaces = true;
+      content = "";
+    }
+    
+    if (readingParkingSpaces) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }
+      else {
+        readingParkingSpaces = false;
+        parkingSpaces[0] = content.charAt(0);
+        parkingSpaces[1] = content.charAt(1);
+        parkingSpaces[2] = content.charAt(2);
+        parkingSpaces[3] = '\0';
+      }
+    }
+    
+    if (currentLine.endsWith("\"open\":")) {
+      readingParkingOpen = true;
+      content = "";
+    }
+  
+    if (readingParkingOpen) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingParkingOpen = false;
+        parkingOpen[0] = content.charAt(0);
+        parkingOpen[1] = '\0';
+        parkingEnabled = true;
+        #ifdef DEBUG
+        Serial.print("Parking: ");
+        Serial.print(parkingOpen[0] == 't');
+        Serial.print(", ");
+        Serial.println(parkingSpaces);
+        #endif
+      }
+    }
+    #endif
+    
+    #ifdef METRO
+    // fetch Metro app data
+    if (currentLine.endsWith("\"failure\":")) {
+      readingMetroFailure = true;
+      content = "";
+    }
+  
+    if (readingMetroFailure) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingMetroFailure = false;
+        metroFailure[0] = content.charAt(0);
+        metroFailure[1] = '\0';
+        metroEnabled = true;
+        #ifdef DEBUG
+        Serial.print("Metro failure: ");
+        Serial.print(metroFailure[0] == 't');
         #endif
       }
     }
@@ -519,6 +590,12 @@ void resetApps() {
   #ifdef AGENDA
   agendaEnabled = false;
   #endif
+  #ifdef PARKING
+  parkingEnabled = false;
+  #endif
+  #ifdef METRO
+  metroEnabled = false;
+  #endif
 }
 
 int stringToInt(String string) {
@@ -640,7 +717,96 @@ void scrollThirdPanel(int x) {
 
 
 void scrollFourthPanel(int x) {
-  //fourth panel : coffees and energy -64→-96
+    if(x <= -65) {
+    #ifdef EMAILS
+    // emails app
+    if(emailsEnabled) {
+      if(emails[1] != '\0')
+        dotmatrix.putchar(x+116, 1, emails[1], GREEN);
+      dotmatrix.putbitmap(x+100, 1, emailSprite, 9, 6, ORANGE);
+      dotmatrix.putchar(x+109, 1, ' ', GREEN);
+      dotmatrix.putchar(x+111, 1, emails[0], GREEN);
+    }
+    #endif
+    
+    #ifdef COFFEES
+    // coffees app
+    if(coffeesEnabled) {
+      if(coffees[1] != '\0')
+        dotmatrix.putchar(x+116, 2, coffees[1], GREEN);
+      dotmatrix.putbitmap(x+99, 0, coffeeSprite, 16, 8, ORANGE);
+      dotmatrix.putchar(x+108, 2, ' ', GREEN);
+      dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
+    }
+    #endif
+    
+    // parking app
+    #ifdef PARKING
+    if(parkingEnabled) {
+      byte marginLeft = 0;
+      // if we have two digits
+      if(parkingSpaces[2] == '\0')
+        marginLeft = 2;
+      else
+        marginLeft = 0;
+        
+      if(!marginLeft) {
+        color = GREEN;
+        dotmatrix.putchar(x+105+marginLeft, 10, parkingSpaces[2], color);
+      }
+      else {
+        color = ORANGE;
+        if(parkingSpaces[1] == '\0')
+          color = RED;
+      }
+      
+      dotmatrix.putchar(x+95+marginLeft, 10, parkingSpaces[0], color);
+      if(parkingSpaces[1] == '\0')
+        parkingSpaces[1] = '!';
+      else
+        dotmatrix.putchar(x+100+marginLeft, 10, parkingSpaces[1], color);
+        
+      dotmatrix.putbitmap(x+97, 0, parkingSprite, 10, 8, color);
+    }
+    #endif
+    
+    // parking app
+    #ifdef METRO
+    if(metroEnabled) {
+      if(metroFailure[0] == 't') {
+        color = RED;
+        dotmatrix.putchar(x+113, 10, '1', color);
+        dotmatrix.putchar(x+118, 10, '1', color);
+        dotmatrix.putchar(x+123, 10, '\'', color);
+      }
+      else {
+        color = GREEN;
+        dotmatrix.putchar(x+113, 10, 'O', color);
+        dotmatrix.putchar(x+118, 10, 'K', color);
+      }
+      
+      dotmatrix.putbitmap(x+113, 0, metroSprite, 11, 8, color);
+    }
+    #endif
+    
+    // energy app
+    #ifdef ENERGY
+    if(energyEnabled) {
+      for(int i = 0; i < 7; i++) {
+        drawChart(x + 96 + (i*4), energy[i]);
+      }
+    }
+    #endif
+    
+    if(x == -65 || x == -95) {
+      waitAWhile();
+      waitAWhile();
+    }
+    
+    if(timeEnabled)
+      printTime(x+129);
+  }
+  
   if(x <= -33) {
     // bus app
     if(busEnabled) {
@@ -673,49 +839,9 @@ void scrollFourthPanel(int x) {
         dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
     }
   }
-  
-  if(x <= -63) {
-    #ifdef EMAILS
-    // emails app
-    if(emailsEnabled) {
-      if(emails[1] != '\0')
-        dotmatrix.putchar(x+116, 1, emails[1], GREEN);
-      dotmatrix.putbitmap(x+100, 1, emailSprite, 9, 6, ORANGE);
-      dotmatrix.putchar(x+109, 1, ' ', GREEN);
-      dotmatrix.putchar(x+111, 1, emails[0], GREEN);
-    }
-    #endif
-    
-    #ifdef COFFEES
-    // coffees app
-    if(coffeesEnabled) {
-      if(coffees[1] != '\0')
-        dotmatrix.putchar(x+116, 2, coffees[1], GREEN);
-      dotmatrix.putbitmap(x+99, 0, coffeeSprite, 16, 8, ORANGE);
-      dotmatrix.putchar(x+108, 2, ' ', GREEN);
-      dotmatrix.putchar(x+111, 2, coffees[0], GREEN);
-    }
-    #endif
-    
-    // energy app
-    #ifdef ENERGY
-    if(energyEnabled) {
-      for(int i = 0; i < 7; i++) {
-        drawChart(x + 97 + (i*4), energy[i]);
-      }
-    }
-    #endif
-    
-    if(x == -65 || x == -95) {
-      waitAWhile();
-      waitAWhile();
-    }
-    
-    if(timeEnabled)
-      printTime(x+129);
-  }
 }
 
+#ifdef AGENDA
 void scrollFifthPanel(int x) {
   //fourth panel : coffees and energy -64→-96
   if(x <= -63) {
@@ -742,6 +868,7 @@ void scrollFifthPanel(int x) {
     }
   }
 }
+#endif
 
 #ifdef MESSAGES
 void scrollSixthPanel() {

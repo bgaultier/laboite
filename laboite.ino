@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.4
+  laboite v3.5
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -24,6 +24,8 @@
  * Emails
  * RATP
  * Agenda
+ * Parking
+ * Metro
  
  Circuit:
  * Ethernet shield attached to pins 10, 11, 12, 13 (Arduino Yún support from v3.4)
@@ -32,7 +34,7 @@
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 31 Mar 2015
+ modified 23 Jul 2015
  by Baptiste Gaultier
  
  This code is in the public domain.
@@ -78,10 +80,12 @@ String currentLine = "";                 // string to hold the text from server
 
 // Modular Apps code
 // (uncomment only the apps you need, otherwise the sketch will be too big)
-#define ENERGY
+//#define ENERGY
 #define MESSAGES
-#define COFFEES
+//#define COFFEES
 #define AGENDA
+//#define PARKING
+//#define METRO
 
 
 // Variables used to display infos
@@ -121,8 +125,19 @@ char message[140];
 char coffees[3];
 #endif
 
+#ifdef AGENDA
 char eventStart[5];
 char eventSummary[64];
+#endif
+
+#ifdef PARKING
+char parkingOpen[2];
+char parkingSpaces[4];
+#endif
+
+#ifdef METRO
+char metroFailure[2];
+#endif
 
 // Parser variables
 boolean readingTime = false;
@@ -146,6 +161,15 @@ boolean readingDay5 = false;
 boolean readingDay6 = false;
 #endif
 
+#ifdef PARKING
+boolean readingParkingOpen = false;
+boolean readingParkingSpaces = false;
+#endif
+
+#ifdef METRO
+boolean readingMetroFailure = false;
+#endif
+
 boolean readingMessage = false;
 
 #ifdef COFFEES
@@ -154,9 +178,10 @@ boolean readingCoffees = false;
 
 boolean readingEmails = false;
 
+#ifdef AGENDA
 boolean readingEventStart = false;
 boolean readingEventSummary = false;
-
+#endif
 
 // Apps variables
 
@@ -174,6 +199,12 @@ boolean coffeesEnabled = false;
 #endif
 #ifdef AGENDA
 boolean agendaEnabled = false;
+#endif
+#ifdef PARKING
+boolean parkingEnabled = false;
+#endif
+#ifdef METRO
+boolean metroEnabled = false;
 #endif
 
 #ifdef SENSORS
@@ -217,6 +248,14 @@ uint16_t coffeeSprite[8] = {0x4800, 0x2400, 0x4800, 0xff00, 0x8500, 0x8600, 0x84
 // agenda app sprite
 uint16_t calendarSprite[8] = { 0b01111111, 0b01111111, 0b01000001, 0b01001001, 0b01001001, 0b01001001, 0b01000001, 0b01111111 };
 #endif
+#ifdef PARKING
+// parking app sprite
+uint16_t parkingSprite[8] =  { 0x01fc, 0x0106, 0x0132, 0x0132, 0x0106, 0x013c, 0x0120, 0x01e0 };
+#endif
+#ifdef METRO
+// metro app sprite
+uint16_t metroSprite[8] =  { 0x039c, 0x07fe, 0x0666, 0x0666, 0x0666, 0x0666, 0x0666, 0x0666 };
+#endif
 
 boolean scrolling = true;             // value modified when button is pressed
 
@@ -234,7 +273,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.4 starting...");
+  Serial.println("laboite v3.5 starting...");
   #endif
 
   // attempt a DHCP connection:  
