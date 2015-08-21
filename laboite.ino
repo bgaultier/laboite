@@ -1,5 +1,4 @@
 /*
-
   laboite v3.6
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
@@ -83,9 +82,9 @@ String currentLine = "";                 // string to hold the text from server
 //#define ENERGY
 #define MESSAGES
 //#define COFFEES
-//#define AGENDA
-#define PARKING
-#define METRO
+#define AGENDA
+//#define PARKING
+//#define METRO
 #define BUSSTOP
 
 
@@ -146,7 +145,11 @@ char eventSummary[64];
 #endif
 
 #ifdef PARKING
+<<<<<<< HEAD
 boolean parkingOpen;
+=======
+char parkingOpen[2];
+>>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 char parkingSpaces[4];
 #endif
 
@@ -187,6 +190,7 @@ boolean readingParkingSpaces = false;
 boolean readingMetroFailure = false;
 #endif
 
+<<<<<<< HEAD
 #ifdef BUSSTOP
 boolean readingRoute0 = false;
 boolean readingRoute1 = false;
@@ -197,6 +201,8 @@ boolean readingDeparture1 = false;
 #endif
 
 #ifdef MESSAGES
+=======
+>>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 boolean readingMessage = false;
 #endif
 
@@ -236,9 +242,12 @@ boolean parkingEnabled = false;
 #ifdef METRO
 boolean metroEnabled = false;
 #endif
+<<<<<<< HEAD
 #ifdef BUSSTOP
 boolean busStopEnabled= false;
 #endif
+=======
+>>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 
 #ifdef SENSORS
 // Sensors constants won't change. They're used here to 
