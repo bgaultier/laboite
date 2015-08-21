@@ -1,4 +1,5 @@
 /*
+
   laboite v3.6
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
@@ -73,7 +74,7 @@ EthernetClient client;
 const int requestInterval = 16000;       // delay between requests
 
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "a93e5330";              // your device API key
+char apikey[] = "964de680";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
@@ -145,11 +146,7 @@ char eventSummary[64];
 #endif
 
 #ifdef PARKING
-<<<<<<< HEAD
 boolean parkingOpen;
-=======
-char parkingOpen[2];
->>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 char parkingSpaces[4];
 #endif
 
@@ -190,7 +187,6 @@ boolean readingParkingSpaces = false;
 boolean readingMetroFailure = false;
 #endif
 
-<<<<<<< HEAD
 #ifdef BUSSTOP
 boolean readingRoute0 = false;
 boolean readingRoute1 = false;
@@ -201,8 +197,6 @@ boolean readingDeparture1 = false;
 #endif
 
 #ifdef MESSAGES
-=======
->>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 boolean readingMessage = false;
 #endif
 
@@ -242,12 +236,9 @@ boolean parkingEnabled = false;
 #ifdef METRO
 boolean metroEnabled = false;
 #endif
-<<<<<<< HEAD
 #ifdef BUSSTOP
 boolean busStopEnabled= false;
 #endif
-=======
->>>>>>> 3b2960679a524e9eceb8bceeb9632cd9a64011cd
 
 #ifdef SENSORS
 // Sensors constants won't change. They're used here to 
