@@ -19,7 +19,7 @@ void connectToServer() {
     client.println("Connection: close");
     client.println();
   }
-}   
+}
 
 boolean parseJSON() {
   // make sure all apps are not enabled
@@ -52,6 +52,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"time\":")) {
       readingTime = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingTime) {
@@ -80,10 +81,57 @@ boolean parseJSON() {
       }
     }
     
+    // fetch dotmatrix speed
+    if (currentLine.endsWith("\"speed\":")) {
+      readingSpeed = true;
+      content = "";
+      currentLine = "";
+    }
+    
+    if (readingSpeed) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }
+      else {
+        readingSpeed = false;
+        speed = stringToInt(content);
+        
+        #ifdef DEBUG
+        Serial.print("Scrolling speed: ");
+        Serial.println(speed);
+        #endif
+      }
+    }
+    
+    // fetch dotmatrix sleeping mode
+    if (currentLine.endsWith("\"sleeping\":")) {
+      readingSleepingMode = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingSleepingMode) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingSleepingMode = false;
+        sleeping = content.charAt(0) == 't';
+        
+        #ifdef DEBUG
+        Serial.print("Sleeping: ");
+        Serial.println(sleeping);
+        #endif
+      }
+    }
+    
     // fetch Bus app data
     if (currentLine.endsWith("\"bus\":")) {
       readingBus = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingBus) {
@@ -106,10 +154,160 @@ boolean parseJSON() {
       }
     }
     
+    #ifdef BUSSTOP
+    // fetch Bus Stop app data
+    if (currentLine.endsWith("\"route0\":")) {
+      readingRoute0 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingRoute0) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }  
+      else {
+        readingRoute0 = false;
+        route0[0] = content.charAt(0);
+        route0[1] = content.charAt(1);
+        route0[2] = '\0';
+        
+        busStopEnabled = true;
+        
+        #ifdef DEBUG
+        Serial.print("Bus Stop: ");
+        Serial.print(route0);
+        #endif
+      }
+    }
+    
+    /*if (currentLine.endsWith("\"headsign0\":")) {
+      readingHeadsign0 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingHeadsign0) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }
+      else {
+        readingHeadsign0 = false;
+        content.toCharArray(headsign0, min(content.length() + 1, 32));
+        headsign0[31] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print("-");
+        Serial.print(headsign0);
+        #endif
+      }
+    }*/
+    
+    if (currentLine.endsWith("\"departure0\":")) {
+      readingDeparture0 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingDeparture0) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }  
+      else {
+        readingDeparture0 = false;
+        departure0[0] = content.charAt(0);
+        departure0[1] = content.charAt(1);
+        departure0[2] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print(" in ");
+        Serial.print(departure0);
+        Serial.print("'");
+        #endif
+      }
+    }
+    
+    if (currentLine.endsWith("\"route1\":")) {
+      readingRoute1 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingRoute1) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }  
+      else {
+        readingRoute1 = false;
+        route1[0] = content.charAt(0);
+        route1[1] = content.charAt(1);
+        route1[2] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print(",");
+        Serial.print(route1);
+        #endif
+      }
+    }
+    
+    /*if (currentLine.endsWith("\"headsign1\":")) {
+      readingHeadsign1 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingHeadsign1) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }
+      else {
+        readingHeadsign1 = false;
+        content.toCharArray(headsign1, min(content.length() + 1, 32));
+        headsign1[31] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print("-");
+        Serial.print(headsign1);
+        #endif
+      }
+    }*/
+    
+    if (currentLine.endsWith("\"departure1\":")) {
+      readingDeparture1 = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingDeparture1) {
+       if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }  
+      else {
+        readingDeparture1 = false;
+        departure1[0] = content.charAt(0);
+        departure1[1] = content.charAt(1);
+        departure1[2] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print(" in ");
+        Serial.print(departure1);
+        Serial.println("'");
+        #endif
+      }
+    }
+    #endif
+    
     // fetch Bikes app data
     if (currentLine.endsWith("\"bikes\":")) {
       readingBikes = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingBikes) {
@@ -137,6 +335,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"coffees\":")) {
       readingCoffees = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingCoffees) {
@@ -165,6 +364,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"emails\":")) {
       readingEmails = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingEmails) {
@@ -193,6 +393,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day0\":")) {
       readingDay0 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay0) {
@@ -209,6 +410,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day1\":")) {
       readingDay1 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay1) {
@@ -225,6 +427,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day2\":")) {
       readingDay2 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay2) {
@@ -241,6 +444,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day3\":")) {
       readingDay3 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay3) {
@@ -257,6 +461,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day4\":")) {
       readingDay4 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay4) {
@@ -273,6 +478,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day5\":")) {
       readingDay5 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay5) {
@@ -289,6 +495,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"day6\":")) {
       readingDay6 = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingDay6) {
@@ -315,11 +522,12 @@ boolean parseJSON() {
     }
     #endif
     
-    #ifdef AGENDA.
+    #ifdef AGENDA
     // fetch Agenda app data
     if (currentLine.endsWith("\"dtstart\":")) {
       readingEventStart = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingEventStart) {
@@ -349,6 +557,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"summary\":")) {
       readingEventSummary = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingEventSummary) {
@@ -375,6 +584,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"messages\":")) {
       readingMessage = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingMessage) {
@@ -397,10 +607,84 @@ boolean parseJSON() {
     }
     #endif
     
+    #ifdef PARKING
+    // fetch Parking app data
+    if (currentLine.endsWith("\"spaces\":")) {
+      readingParkingSpaces = true;
+      content = "";
+      currentLine = "";
+    }
+    
+    if (readingParkingSpaces) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+          content += inChar;
+      }
+      else {
+        readingParkingSpaces = false;
+        parkingSpaces[0] = content.charAt(0);
+        parkingSpaces[1] = content.charAt(1);
+        parkingSpaces[2] = content.charAt(2);
+        parkingSpaces[3] = '\0';
+      }
+    }
+    
+    if (currentLine.endsWith("\"open\":")) {
+      readingParkingOpen = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingParkingOpen) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingParkingOpen = false;
+        parkingOpen = content.charAt(0) == 't';
+        parkingEnabled = true;
+        #ifdef DEBUG
+        Serial.print("Parking: ");
+        Serial.print(parkingOpen);
+        Serial.print(", ");
+        Serial.println(parkingSpaces);
+        #endif
+      }
+    }
+    #endif
+    
+    #ifdef METRO
+    // fetch Metro app data
+    if (currentLine.endsWith("\"failure\":")) {
+      readingMetroFailure = true;
+      content = "";
+      currentLine = "";
+    }
+  
+    if (readingMetroFailure) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingMetroFailure = false;
+        metroFailure[0] = content.charAt(0);
+        metroFailure[1] = '\0';
+        metroEnabled = true;
+        #ifdef DEBUG
+        Serial.print("Metro failure: ");
+        Serial.println(metroFailure[0] == 't');
+        #endif
+      }
+    }
+    #endif
+    
     // fetch Weather app data
     if (currentLine.endsWith("y\":{\"icon\":")) {
       readingTodayIcon = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingTodayIcon) {
@@ -417,6 +701,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"temperature\":")) {
       readingTemperature = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingTemperature) {
@@ -435,6 +720,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("w\":{\"icon\":")) {
       readingTomorrowIcon = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingTomorrowIcon) {
@@ -451,6 +737,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"low\":")) {
       readingLow = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingLow) {
@@ -469,6 +756,7 @@ boolean parseJSON() {
     if (currentLine.endsWith("\"high\":")) {
       readingHigh = true;
       content = "";
+      currentLine = "";
     }
   
     if (readingHigh) {
@@ -509,7 +797,9 @@ void resetApps() {
   #ifdef ENERGY
   energyEnabled = false;
   #endif
+  #ifdef MESSAGES
   messagesEnabled = false;
+  #endif
   #ifdef COFFEES
   coffeesEnabled = false;
   #endif
@@ -518,6 +808,15 @@ void resetApps() {
   #endif
   #ifdef AGENDA
   agendaEnabled = false;
+  #endif
+  #ifdef PARKING
+  parkingEnabled = false;
+  #endif
+  #ifdef METRO
+  metroEnabled = false;
+  #endif
+  #ifdef BUSSTOP
+  busStopEnabled = false;
   #endif
 }
 
@@ -553,6 +852,44 @@ void adjustBrightness() {
   #endif
   
 }
+
+void blinkPixel() {
+  dotmatrix.clear();
+  dotmatrix.plot(0, 0, GREEN);
+  dotmatrix.sendframe();
+  delay(500);
+  dotmatrix.clear();
+  delay(9000);
+}
+
+#ifdef BUSSTOP
+void printBusStop(int x, char *departure, char *route) {
+  if(departure[1] == '\0') {
+    dotmatrix.putchar(x+1, 10,' ', GREEN);
+    dotmatrix.putchar(x+3, 10, departure[0], GREEN);
+    dotmatrix.putchar(x+8, 10, '\'', GREEN);
+  }
+  else {
+    dotmatrix.putchar(x, 10, departure[0], GREEN);
+    dotmatrix.putchar(x+5, 10, departure[1], GREEN);
+    dotmatrix.putchar(x+10, 10, '\'', GREEN);
+  }
+  dotmatrix.putchar(x, 0, ' ', BLACK, 0, GREEN);
+  dotmatrix.putchar(x, 1, ' ', BLACK, 0, GREEN);
+  
+  if(route[1] == '\0')
+    dotmatrix.putchar(x+4, 1, route[0], BLACK, 0, GREEN);
+  else {
+    dotmatrix.putchar(x+6, 0, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x+6, 1, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x, 0, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x, 1, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x+1, 1, route[0], BLACK, 0, GREEN);
+    dotmatrix.putchar(x+6, 1, route[1], BLACK, 0, GREEN);
+  }
+}
+#endif
+    
 
 void waitAWhile() {
   for (int i = 0; i < 8; i++) {
@@ -640,41 +977,28 @@ void scrollThirdPanel(int x) {
 
 
 void scrollFourthPanel(int x) {
-  //fourth panel : coffees and energy -64→-96
-  if(x <= -33) {
-    // bus app
-    if(busEnabled) {
-      if(bus[0] == '-')
-        bus[0] = '<';
-      if(bus[1] == '\0') {
-        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
-        dotmatrix.putchar(x+73, 10, '\'', GREEN);
+  if(x <= -65) {
+    if(x == -65) {
+      waitAWhile();      
+      #ifdef BUSSTOP
+      if(busStopEnabled) {
+        waitAWhile();        
+        printBusStop(x+67, departure1, route1);
+        dotmatrix.sendframe();
+        waitAWhile();
       }
-      else {
-        dotmatrix.putchar(x+66, 10, bus[0], GREEN);
-        dotmatrix.putchar(x+71, 10, bus[1], GREEN);
-        dotmatrix.putchar(x+76, 10, '\'', GREEN);
-      }
-      
-      dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
+      #endif
+      waitAWhile();
     }
     
-    // bikes app
-    if(bikesEnabled) {
-      dotmatrix.putchar(x+92, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+92, 3, ' ', ORANGE);
-      dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
-      
-      if(bikes[1] != '\0') {
-        dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
-        dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
-      }
-      else
-        dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
+    if(x == -95) {
+      waitAWhile();
+      waitAWhile();
     }
-  }
-  
-  if(x <= -63) {
+    
+    if(timeEnabled)
+      printTime(x+129);
+      
     #ifdef EMAILS
     // emails app
     if(emailsEnabled) {
@@ -697,25 +1021,110 @@ void scrollFourthPanel(int x) {
     }
     #endif
     
+    // parking app
+    #ifdef PARKING
+    if(parkingEnabled) {
+      byte marginLeft = 0;
+      // if we have two digits
+      if(parkingSpaces[2] == '\0')
+        marginLeft = 2;
+      else
+        marginLeft = 0;
+        
+      if(!marginLeft) {
+        color = GREEN;
+        dotmatrix.putchar(x+105+marginLeft, 10, parkingSpaces[2], color);
+      }
+      else {
+        color = ORANGE;
+        if(parkingSpaces[1] == '\0')
+          color = RED;
+      }
+      
+      dotmatrix.putchar(x+95+marginLeft, 10, parkingSpaces[0], color);
+      if(parkingSpaces[1] == '\0')
+        parkingSpaces[1] = '!';
+      else
+        dotmatrix.putchar(x+100+marginLeft, 10, parkingSpaces[1], color);
+        
+      if(!parkingOpen)
+        color = RED;
+      dotmatrix.putbitmap(x+97, 0, parkingSprite, 10, 8, color);
+    }
+    #endif
+    
+    // parking app
+    #ifdef METRO
+    if(metroEnabled) {
+      if(metroFailure[0] == 't') {
+        color = RED;
+        dotmatrix.putchar(x+113, 10, '1', color);
+        dotmatrix.putchar(x+118, 10, '1', color);
+        dotmatrix.putchar(x+123, 10, '\'', color);
+      }
+      else {
+        color = GREEN;
+        dotmatrix.putchar(x+113, 10, 'O', color);
+        dotmatrix.putchar(x+118, 10, 'K', color);
+      }
+      
+      dotmatrix.putbitmap(x+113, 0, metroSprite, 11, 8, color);
+    }
+    #endif
+    
     // energy app
     #ifdef ENERGY
     if(energyEnabled) {
       for(int i = 0; i < 7; i++) {
-        drawChart(x + 97 + (i*4), energy[i]);
+        drawChart(x + 96 + (i*4), energy[i]);
       }
     }
     #endif
-    
-    if(x == -65 || x == -95) {
-      waitAWhile();
-      waitAWhile();
+  }
+  
+  if(x <= -33) {
+    // bus app
+    if(busEnabled && !busStopEnabled) {
+      if(bus[1] == '\0') {
+        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
+        dotmatrix.putchar(x+73, 10, '\'', GREEN);
+      }
+      else {
+        dotmatrix.putchar(x+66, 10, bus[0], GREEN);
+        dotmatrix.putchar(x+71, 10, bus[1], GREEN);
+        dotmatrix.putchar(x+76, 10, '\'', GREEN);
+      }
+      
+      dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
     }
     
-    if(timeEnabled)
-      printTime(x+129);
+    #ifdef BUSSTOP
+    // bus stop app
+    if(busStopEnabled) {
+      if(x>-65)
+        printBusStop(x+66, departure0, route0);
+      else
+        printBusStop(x+66, departure1, route1);
+    }
+    #endif
+    
+    // bikes app
+    if(bikesEnabled) {
+      dotmatrix.putchar(x+92, 0, ' ', ORANGE);
+      dotmatrix.putchar(x+92, 3, ' ', ORANGE);
+      dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
+      
+      if(bikes[1] != '\0') {
+        dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
+        dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
+      }
+      else
+        dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
+    }
   }
 }
 
+#ifdef AGENDA
 void scrollFifthPanel(int x) {
   //fourth panel : coffees and energy -64→-96
   if(x <= -63) {
@@ -736,18 +1145,19 @@ void scrollFifthPanel(int x) {
       dotmatrix.putchar(x+156, 1, eventStart[3], ORANGE);
       
       if(x == -129)
-        dotmatrix.hscrolltext(9, eventSummary, ORANGE, 10, 1, LEFT);
+        dotmatrix.hscrolltext(9, eventSummary, ORANGE, speed-20, 1, LEFT);
       if(timeEnabled)
         printTime(x+161);
     }
   }
 }
+#endif
 
 #ifdef MESSAGES
 void scrollSixthPanel() {
   // fifth panel : message
   if(messagesEnabled)
-    dotmatrix.hscrolltext(9, message, GREEN, 10, 1, LEFT);
+    dotmatrix.hscrolltext(9, message, GREEN, speed-20, 1, LEFT);
 }
 #endif
 
