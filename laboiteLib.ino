@@ -1123,39 +1123,6 @@ void scrollFourthPanel(int x) {
         dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
     }
   }
-  
-  if(x <= -33) {
-    // bus app
-    if(busEnabled) {
-      if(bus[0] == '-')
-        bus[0] = '<';
-      if(bus[1] == '\0') {
-        dotmatrix.putchar(x+68, 10, bus[0], GREEN);
-        dotmatrix.putchar(x+73, 10, '\'', GREEN);
-      }
-      else {
-        dotmatrix.putchar(x+66, 10, bus[0], GREEN);
-        dotmatrix.putchar(x+71, 10, bus[1], GREEN);
-        dotmatrix.putchar(x+76, 10, '\'', GREEN);
-      }
-      
-      dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
-    }
-    
-    // bikes app
-    if(bikesEnabled) {
-      dotmatrix.putchar(x+92, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+92, 3, ' ', ORANGE);
-      dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
-      
-      if(bikes[1] != '\0') {
-        dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
-        dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
-      }
-      else
-        dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
-    }
-  }
 }
 
 #ifdef AGENDA
