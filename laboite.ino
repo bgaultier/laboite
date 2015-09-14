@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.6
+  laboite v3.7
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -71,8 +71,6 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 EthernetClient client;
 #endif
 
-const int requestInterval = 16000;       // delay between requests
-
 char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
 char apikey[] = "964de680";              // your device API key
 
@@ -80,6 +78,7 @@ String currentLine = "";                 // string to hold the text from server
 
 // Modular Apps code
 // (uncomment only the apps you need, otherwise the sketch will be too big)
+#define BUS
 //#define ENERGY
 #define MESSAGES
 //#define COFFEES
@@ -87,6 +86,7 @@ String currentLine = "";                 // string to hold the text from server
 //#define PARKING
 //#define METRO
 #define BUSSTOP
+//#define SLOTS
 
 
 // Variables used to display infos
@@ -111,9 +111,16 @@ char indoorTemperatureString[3];
 byte indoorTemperature;
 #endif
 
+#ifdef BUS
 char bus[3];
+#endif
+
 
 char bikes[3];
+
+#ifdef SLOTS
+char slots[3];
+#endif
 
 #ifdef ENERGY
 byte energy[7];
@@ -165,8 +172,14 @@ boolean readingTomorrowIcon = false;
 boolean readingLow = false;
 boolean readingHigh = false;
 
+#ifdef BUS
 boolean readingBus = false;
+#endif
 boolean readingBikes = false;
+
+#ifdef SLOTS
+boolean readingSlots = false;
+#endif
 
 #ifdef ENERGY
 boolean readingDay0 = false;
@@ -267,10 +280,14 @@ uint16_t sprites[5][9] =
   { 0x0000, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x7ffe, 0x0000, 0x0000 },
   { 0x0540, 0x0380, 0x1110, 0x0920, 0x1ff0, 0x0920, 0x1110, 0x0380, 0x0540 }
 };
+#ifdef BUS
 // bus app sprite:
 uint16_t busSprite[9] = { 0x00fc, 0x0186, 0x01fe, 0x0102, 0x0102, 0x01fe, 0x017a, 0x01fe, 0x0084};
+#endif
 // bikes app sprite:
 uint16_t bikeSprite[9] = { 0x020c, 0x0102, 0x008c, 0x00f8, 0x078e, 0x0ab9, 0x0bd5, 0x0891, 0x070e};
+// slots app sprite:
+uint16_t slotSprite[9] = { 0x0078, 0x00fc, 0x00cc, 0x00cc, 0x00fc, 0x0078, 0x0078, 0x0030, 0x0000};
 // emails app sprite:
 uint16_t emailSprite[6] = { 0x00fe, 0x0145, 0x0129, 0x0111, 0x0101, 0x00fe};
 #ifdef COFFEES
@@ -306,7 +323,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.6 starting...");
+  Serial.println("laboite v3.7 starting...");
   #endif
 
   // attempt a DHCP connection:  
@@ -426,7 +443,7 @@ void loop()
         #ifdef WATCHDOG
         wdt_reset();
         #endif
-        delay(requestInterval/4);
+        delay(4000);
       }
       #ifdef SENSORS
       if (digitalRead(buttonPin) == HIGH)

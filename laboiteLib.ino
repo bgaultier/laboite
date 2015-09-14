@@ -127,6 +127,7 @@ boolean parseJSON() {
       }
     }
     
+    #ifdef BUS
     // fetch Bus app data
     if (currentLine.endsWith("\"bus\":")) {
       readingBus = true;
@@ -153,6 +154,7 @@ boolean parseJSON() {
         #endif
       }
     }
+    #endif
     
     #ifdef BUSSTOP
     // fetch Bus Stop app data
@@ -329,6 +331,33 @@ boolean parseJSON() {
         #endif
       }
     }
+    
+    #ifdef SLOTS
+    if (currentLine.endsWith("\"slots\":")) {
+      readingSlots = true;
+      content = "";
+      currentLine = "";
+    }
+    
+    if (readingSlots) {
+      if (inChar != ',' && inChar != '}') {
+        if (inChar != '"' && inChar != ':')
+        content += inChar;
+      }
+      else {
+        readingSlots = false;
+        slots[0] = content.charAt(0);
+        slots[1] = content.charAt(1);
+        slots[2] = '\0';
+        
+        #ifdef DEBUG
+        Serial.print("Slots: ");
+        Serial.println(slots);
+        #endif
+      }
+    }
+    #endif
+    
     
     #ifdef COFFEES
     // fetch Coffees app data
@@ -859,7 +888,27 @@ void blinkPixel() {
   dotmatrix.sendframe();
   delay(500);
   dotmatrix.clear();
+  // releash the watchdog !
   delay(9000);
+}
+
+void printBikes(int x, char *bikes, uint16_t *sprite, byte COLOR) {
+  dotmatrix.putchar(x+5, 3, ' ', ORANGE);
+  dotmatrix.putchar(x+10, 3, ' ', ORANGE);
+  
+  dotmatrix.putchar(x+15, 0, ' ', ORANGE);
+  dotmatrix.putchar(x+15, 3, ' ', ORANGE);
+  dotmatrix.putbitmap(x, 0, sprite, 16, 9, COLOR);
+  
+  if(bikes[1] != '\0') {
+    dotmatrix.putchar(x+5, 10, bikes[0], GREEN);
+    dotmatrix.putchar(x+10, 10, bikes[1], GREEN);
+  }
+  else {
+    dotmatrix.putchar(x+5, 10, ' ', GREEN);
+    dotmatrix.putchar(x+8, 10, bikes[0], GREEN);
+    dotmatrix.putchar(x+13, 10, ' ', GREEN);
+  }
 }
 
 #ifdef BUSSTOP
@@ -876,6 +925,9 @@ void printBusStop(int x, char *departure, char *route) {
   }
   dotmatrix.putchar(x, 0, ' ', BLACK, 0, GREEN);
   dotmatrix.putchar(x, 1, ' ', BLACK, 0, GREEN);
+  
+  dotmatrix.putchar(x+11, 0, ' ', GREEN);
+  dotmatrix.putchar(x+11, 1, ' ', GREEN);
   
   if(route[1] == '\0')
     dotmatrix.putchar(x+4, 1, route[0], BLACK, 0, GREEN);
@@ -979,13 +1031,25 @@ void scrollThirdPanel(int x) {
 void scrollFourthPanel(int x) {
   if(x <= -65) {
     if(x == -65) {
-      waitAWhile();      
+      waitAWhile();
       #ifdef BUSSTOP
       if(busStopEnabled) {
         waitAWhile();        
         printBusStop(x+67, departure1, route1);
+        #ifndef SLOTS
         dotmatrix.sendframe();
+        #endif
         waitAWhile();
+      }
+      #endif
+      #ifdef SLOTS
+      if(bikesEnabled) {
+        if(!busStopEnabled)
+          waitAWhile();
+        printBikes(x+78, slots, slotSprite, RED);
+        dotmatrix.sendframe();
+        if(!busStopEnabled)
+          waitAWhile();
       }
       #endif
       waitAWhile();
@@ -1084,6 +1148,7 @@ void scrollFourthPanel(int x) {
   }
   
   if(x <= -33) {
+    #ifdef BUS
     // bus app
     if(busEnabled && !busStopEnabled) {
       if(bus[1] == '\0') {
@@ -1098,6 +1163,7 @@ void scrollFourthPanel(int x) {
       
       dotmatrix.putbitmap(x+67, 0, busSprite, 9, 9, ORANGE);
     }
+    #endif
     
     #ifdef BUSSTOP
     // bus stop app
@@ -1111,16 +1177,15 @@ void scrollFourthPanel(int x) {
     
     // bikes app
     if(bikesEnabled) {
-      dotmatrix.putchar(x+92, 0, ' ', ORANGE);
-      dotmatrix.putchar(x+92, 3, ' ', ORANGE);
-      dotmatrix.putbitmap(x+77, 0, bikeSprite, 16, 9, ORANGE);
-      
-      if(bikes[1] != '\0') {
-        dotmatrix.putchar(x+82, 10, bikes[0], GREEN);
-        dotmatrix.putchar(x+87, 10, bikes[1], GREEN);
-      }
+      #ifndef SLOTS
+      printBikes(x+77, bikes, bikeSprite, ORANGE);
+      #endif
+      #ifdef SLOTS
+      if(x>-65)
+        printBikes(x+77, bikes, bikeSprite, ORANGE);
       else
-        dotmatrix.putchar(x+85, 10, bikes[0], GREEN);
+        printBikes(x+77, slots, slotSprite, RED);
+      #endif
     }
   }
 }
