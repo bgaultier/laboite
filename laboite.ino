@@ -1,6 +1,6 @@
 /*
 
-  laboite v3.7
+  laboite 3.8
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -71,22 +71,22 @@ byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 EthernetClient client;
 #endif
 
-char serverName[] = "api.laboite.cc";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
-char apikey[] = "964de680";              // your device API key
+char serverName[] = "api.laboitestar.fr";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
+char apikey[] = "bd2cecb5";              // your device API key
 
 String currentLine = "";                 // string to hold the text from server
 
 // Modular Apps code
 // (uncomment only the apps you need, otherwise the sketch will be too big)
-#define BUS
+//#define BUS
 //#define ENERGY
 #define MESSAGES
 //#define COFFEES
-#define AGENDA
-//#define PARKING
-//#define METRO
+//#define AGENDA
+#define PARKING
+#define METRO
 #define BUSSTOP
-//#define SLOTS
+#define SLOTS
 
 
 // Variables used to display infos
@@ -101,9 +101,6 @@ boolean sleeping = false;
 
 byte todayIcon;
 char temperature[3];
-byte tomorrowIcon;
-char low[3];
-char high[3];
 byte color;
 
 #ifdef SENSORS
@@ -323,7 +320,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.7 starting...");
+  Serial.println("laboite v3.8 starting...");
   #endif
 
   // attempt a DHCP connection:  

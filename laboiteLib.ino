@@ -743,61 +743,6 @@ boolean parseJSON() {
         temperature[0] = content.charAt(0);
         temperature[1] = content.charAt(1);
         temperature[2] = '\0';
-      }
-    }
-    
-    if (currentLine.endsWith("w\":{\"icon\":")) {
-      readingTomorrowIcon = true;
-      content = "";
-      currentLine = "";
-    }
-  
-    if (readingTomorrowIcon) {
-      if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingTomorrowIcon = false;
-        tomorrowIcon = stringToInt(content);
-      }
-    }
-    
-    if (currentLine.endsWith("\"low\":")) {
-      readingLow = true;
-      content = "";
-      currentLine = "";
-    }
-  
-    if (readingLow) {
-      if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingLow = false;
-        low[0] = content.charAt(0);
-        low[1] = content.charAt(1);
-        low[2] = '\0';
-      }
-    }
-    
-    if (currentLine.endsWith("\"high\":")) {
-      readingHigh = true;
-      content = "";
-      currentLine = "";
-    }
-  
-    if (readingHigh) {
-      if (inChar != ',' && inChar != '}') {
-        if (inChar != '"' && inChar != ':')
-        content += inChar;
-      }
-      else {
-        readingHigh = false;
-        high[0] = content.charAt(0);
-        high[1] = content.charAt(1);
-        high[2] = '\0';
         
         weatherEnabled = true;
         
@@ -806,12 +751,6 @@ boolean parseJSON() {
         Serial.print(todayIcon);
         Serial.print(", ");
         Serial.print(temperature);
-        Serial.print(", ");
-        Serial.print(tomorrowIcon);
-        Serial.print(", ");
-        Serial.print(low);
-        Serial.print(", ");
-        Serial.println(high);
         #endif
       }
     }
@@ -901,43 +840,45 @@ void printBikes(int x, char *bikes, uint16_t *sprite, byte COLOR) {
   dotmatrix.putbitmap(x, 0, sprite, 16, 9, COLOR);
   
   if(bikes[1] != '\0') {
-    dotmatrix.putchar(x+5, 10, bikes[0], GREEN);
-    dotmatrix.putchar(x+10, 10, bikes[1], GREEN);
+    dotmatrix.putchar(x+5+1, 10, bikes[0], GREEN);
+    dotmatrix.putchar(x+10+1, 10, bikes[1], GREEN);
   }
   else {
-    dotmatrix.putchar(x+5, 10, ' ', GREEN);
-    dotmatrix.putchar(x+8, 10, bikes[0], GREEN);
-    dotmatrix.putchar(x+13, 10, ' ', GREEN);
+    dotmatrix.putchar(x+5+1, 10, ' ', GREEN);
+    dotmatrix.putchar(x+8+1, 10, bikes[0], GREEN);
+    dotmatrix.putchar(x+13+1, 10, ' ', GREEN);
   }
 }
 
 #ifdef BUSSTOP
 void printBusStop(int x, char *departure, char *route) {
   if(departure[1] == '\0') {
-    dotmatrix.putchar(x+1, 10,' ', GREEN);
-    dotmatrix.putchar(x+3, 10, departure[0], GREEN);
-    dotmatrix.putchar(x+8, 10, '\'', GREEN);
+    dotmatrix.putchar(x+1+16, 10,' ', GREEN);
+    dotmatrix.putchar(x+3+16, 10, departure[0], GREEN);
+    dotmatrix.putchar(x+8+16, 10, '\'', GREEN);
   }
   else {
-    dotmatrix.putchar(x, 10, departure[0], GREEN);
-    dotmatrix.putchar(x+5, 10, departure[1], GREEN);
-    dotmatrix.putchar(x+10, 10, '\'', GREEN);
+    dotmatrix.putchar(x+16, 10, departure[0], GREEN);
+    dotmatrix.putchar(x+5+16, 10, departure[1], GREEN);
+    dotmatrix.putchar(x+10+16, 10, '\'', GREEN);
   }
-  dotmatrix.putchar(x, 0, ' ', BLACK, 0, GREEN);
-  dotmatrix.putchar(x, 1, ' ', BLACK, 0, GREEN);
+  dotmatrix.putchar(x, 8, ' ', BLACK, 0, GREEN);
+  dotmatrix.putchar(x, 9, ' ', BLACK, 0, GREEN);
   
-  dotmatrix.putchar(x+11, 0, ' ', GREEN);
-  dotmatrix.putchar(x+11, 1, ' ', GREEN);
+  dotmatrix.putchar(x+11, 8, ' ', GREEN);
+  dotmatrix.putchar(x+11, 9, ' ', GREEN);
   
-  if(route[1] == '\0')
-    dotmatrix.putchar(x+4, 1, route[0], BLACK, 0, GREEN);
+  if(route[1] == '\0') {
+    dotmatrix.putchar(x+6, 9, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x+4, 9, route[0], BLACK, 0, GREEN);
+  }
   else {
-    dotmatrix.putchar(x+6, 0, ' ', BLACK, 0, GREEN);
-    dotmatrix.putchar(x+6, 1, ' ', BLACK, 0, GREEN);
-    dotmatrix.putchar(x, 0, ' ', BLACK, 0, GREEN);
-    dotmatrix.putchar(x, 1, ' ', BLACK, 0, GREEN);
-    dotmatrix.putchar(x+1, 1, route[0], BLACK, 0, GREEN);
-    dotmatrix.putchar(x+6, 1, route[1], BLACK, 0, GREEN);
+    dotmatrix.putchar(x+6, 8, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x+6, 9, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x, 8, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x, 9, ' ', BLACK, 0, GREEN);
+    dotmatrix.putchar(x+1, 9, route[0], BLACK, 0, GREEN);
+    dotmatrix.putchar(x+6, 9, route[1], BLACK, 0, GREEN);
   }
 }
 #endif
@@ -989,29 +930,27 @@ void scrollFirstPanel(int x) {
 }
 
 void scrollSecondPanel(int x) {
-  if(weatherEnabled) {
+  if(weatherEnabled || busStopEnabled) {
     // second panel : tomorrow weather condition 0→-32
-    if(x <= 1 && x >= -48) {
-      dotmatrix.putchar(x+44, 9, ' ', RED);
-      color = tomorrowIcon == 0 ? color = ORANGE : color = RED;
-      dotmatrix.putbitmap(x+32, 7, sprites[tomorrowIcon],16,9, color);
+    if(x <= 1 && x >= -32) {
+      printBusStop(x+34, departure0, route0);
     }
     
     if(x >= -32 && x < 0) {
       #ifdef SENSORS
       printTemperature(x+17, indoorTemperatureString[0], indoorTemperatureString[1], ORANGE);
       #else
+      if(weatherEnabled)
       printTemperature(x+17, temperature[0], temperature[1], RED);
       #endif
-       
-      printTemperature(x+49, low[0], low[1], RED);
       dotmatrix.sendframe();
     }
     
     if(x == -32) {
       waitAWhile();
-      printTemperature(x+49, high[0], high[1], GREEN);
+      printBusStop(x+34, departure1, route1);
       dotmatrix.sendframe();
+      waitAWhile();
       waitAWhile();
     }
   }
@@ -1020,8 +959,7 @@ void scrollSecondPanel(int x) {
 void scrollThirdPanel(int x) {
   //third panel : bus and bikes -32→-64
   if(x >= -63 && x < -32) {
-    if(weatherEnabled)
-      printTemperature(x+49, high[0], high[1], GREEN);
+      printBusStop(x+34, departure1, route1);
     if(timeEnabled)
       printTime(x+32);
   }
@@ -1032,27 +970,14 @@ void scrollFourthPanel(int x) {
   if(x <= -65) {
     if(x == -65) {
       waitAWhile();
-      #ifdef BUSSTOP
-      if(busStopEnabled) {
-        waitAWhile();        
-        printBusStop(x+67, departure1, route1);
-        #ifndef SLOTS
+      #ifdef SLOTS
+      if(bikesEnabled) {
+        waitAWhile();
+        printBikes(x+78, slots, slotSprite, RED);
         dotmatrix.sendframe();
-        #endif
         waitAWhile();
       }
       #endif
-      #ifdef SLOTS
-      if(bikesEnabled) {
-        if(!busStopEnabled)
-          waitAWhile();
-        printBikes(x+78, slots, slotSprite, RED);
-        dotmatrix.sendframe();
-        if(!busStopEnabled)
-          waitAWhile();
-      }
-      #endif
-      waitAWhile();
     }
     
     if(x == -95) {
@@ -1165,26 +1090,14 @@ void scrollFourthPanel(int x) {
     }
     #endif
     
-    #ifdef BUSSTOP
-    // bus stop app
-    if(busStopEnabled) {
-      if(x>-65)
-        printBusStop(x+66, departure0, route0);
-      else
-        printBusStop(x+66, departure1, route1);
-    }
-    #endif
-    
     // bikes app
     if(bikesEnabled) {
       #ifndef SLOTS
-      printBikes(x+77, bikes, bikeSprite, ORANGE);
+      printBikes(x+77-16, bikes, bikeSprite, ORANGE);
       #endif
       #ifdef SLOTS
-      if(x>-65)
-        printBikes(x+77, bikes, bikeSprite, ORANGE);
-      else
-        printBikes(x+77, slots, slotSprite, RED);
+      printBikes(x+77-16, bikes, bikeSprite, ORANGE);
+      printBikes(x+77, slots, slotSprite, RED);
       #endif
     }
   }
