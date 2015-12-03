@@ -1,10 +1,9 @@
 void connectToServer() {
   // attempt to connect, and wait a millisecond:
-  #ifdef DEBUG
+  #ifdef ETHERNET
   Serial.print("Connecting to ");
   Serial.print(serverName);
   Serial.println("...");
-  #endif
   if (client.connect(serverName, 80)) {
     #ifdef DEBUG
     Serial.println("Making HTTP request...");
@@ -19,6 +18,11 @@ void connectToServer() {
     client.println("Connection: close");
     client.println();
   }
+  #endif
+  #ifndef ETHERNET
+  impSerial.write(' ');
+  delay(100);
+  #endif
 }
 
 boolean parseJSON() {
@@ -26,9 +30,21 @@ boolean parseJSON() {
   resetApps();
   String content = "";
   
+  #ifdef ETHERNET
   while(client.available()) {
+  #endif
+  #ifndef ETHERNET
+  while(impSerial.available()) {
+  #endif
+    #ifdef ETHERNET
     // read incoming bytes:
     char inChar = client.read();
+    #endif
+    #ifndef ETHERNET
+    // read incoming bytes:
+    char inChar = impSerial.read();
+    #endif
+    
     #ifdef WATCHDOG
     wdt_reset();
     #endif

@@ -1,6 +1,6 @@
 /*
 
-  laboite 3.8
+  laboite 3.9
  This Arduino firmware is part of laboite project https://laboite.cc/help
  It is a connected device displaying a lot of information (A LOT !) coming from an
  Internet server with a laboite web app deployed (e.g. https://laboite.cc/ ).
@@ -31,10 +31,11 @@
  * Ethernet shield attached to pins 10, 11, 12, 13 (Arduino Yún support from v3.4)
  * Sure Electronics 3216 LED matrix attached to pins 4, 5, 6, 7
  * LDR, Thermistor and Button modules on A0, A1, A2 (optionnal, uncomment SENSORS to enable it)
+ * Electric Imp Shield support
  
  created 15 Dec 2011
  by Baptiste Gaultier and Tanguy Ropitault
- modified 23 Jul 2015
+ modified 2 Dec 2015
  by Baptiste Gaultier
  
  This code is in the public domain.
@@ -44,7 +45,7 @@
 // uncomment if you want to enable debug
 //#define DEBUG
 // uncomment if you want to enable Ethernet
-#define ETHERNET
+//#define ETHERNET
 // uncomment if you want to enable dotmatrix
 #define HT1632C
 // uncomment if you want to enable classic sensors
@@ -63,12 +64,12 @@
 #include <avr/wdt.h>
 #endif
 
-#ifdef ETHERNET
-// enter a MAC address and IP address for your controller below.
-byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0xE5, 0x91 };
 
-// initialize the library instance:
-EthernetClient client;
+#ifndef ETHERNET
+//This will be use to communicate with the Electric Imp
+#include <SoftwareSerial.h>
+
+SoftwareSerial impSerial(8, 9); // RX, TX
 #endif
 
 char serverName[] = "api.laboitestar.fr";    // your favorite API server running laboite-webapp https://github.com/bgaultier/laboite-webapp
@@ -320,7 +321,7 @@ void setup() {
   
   // display a welcome message:
   #ifdef DEBUG
-  Serial.println("laboite v3.8 starting...");
+  Serial.println("laboite v3.9 starting...");
   #endif
 
   // attempt a DHCP connection:  
@@ -355,30 +356,29 @@ void setup() {
   pinMode(buttonPin, INPUT);
   #endif
   
-  // connect to API server:
+  #ifndef ETHERNET
+  // set a slow data rate for the Imp
+  impSerial.begin(1200);
   connectToServer();
+  #endif
 }
-
 
 void loop()
 {
-  if (client.connected()) {
-    if (client.available()) {
-      // parse json file coming from API server
-      parseJSON();
-      client.stop();
-      
-      #ifdef HT1632C
-      // if !scrolling only time will be shown
-      if(scrolling) {
-        if(timeEnabled)
+  if (impSerial.available()) {
+    parseJSON();
+    
+    #ifdef HT1632C
+    // if !scrolling only time will be shown
+    if(scrolling) {
+      if(timeEnabled)
           printTime(0);
-        // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
-        #ifdef TINKERKIT
-        indoorTemperature = therm.readCelsius();
-        itoa(indoorTemperature, indoorTemperatureString, 10);
-        #endif
-        #ifdef SENSORS
+      // Reading the temperature in Celsius degrees and store in the indoorTemperature variable
+      #ifdef TINKERKIT
+      indoorTemperature = therm.readCelsius();
+      itoa(indoorTemperature, indoorTemperatureString, 10);
+      #endif
+      #ifdef SENSORS
         itoa(getTemperature(), indoorTemperatureString, 10);
         #endif
         
@@ -423,7 +423,6 @@ void loop()
           scrolling = !scrolling;
         #endif
       }
-    }
   }
   else {
     if(sleeping)
@@ -447,7 +446,7 @@ void loop()
         scrolling = !scrolling;
       #endif
       connectToServer();
-      #endif
     }
+    #endif
   }
 }
