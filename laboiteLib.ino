@@ -862,7 +862,7 @@ void printBikes(int x, char *bikes, uint16_t *sprite, byte COLOR) {
   else {
     dotmatrix.putchar(x+5+1, 10, ' ', GREEN);
     dotmatrix.putchar(x+8+1, 10, bikes[0], GREEN);
-    dotmatrix.putchar(x+13+1, 10, ' ', GREEN);
+    dotmatrix.putchar(x+12+1, 10, ' ', GREEN);
   }
 }
 
