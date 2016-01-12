@@ -948,7 +948,7 @@ void scrollFirstPanel(int x) {
 void scrollSecondPanel(int x) {
   if(weatherEnabled || busStopEnabled) {
     // second panel : tomorrow weather condition 0→-32
-    if(x <= 1 && x >= -32) {
+    if(x <= 1 && x >= -32 && busStopEnabled) {
       printBusStop(x+34, departure0, route0);
     }
     
@@ -962,7 +962,7 @@ void scrollSecondPanel(int x) {
       dotmatrix.sendframe();
     }
     
-    if(x == -32) {
+    if(x == -32 && busStopEnabled) {
       waitAWhile();
       printBusStop(x+34, departure1, route1);
       dotmatrix.sendframe();
@@ -975,6 +975,7 @@ void scrollSecondPanel(int x) {
 void scrollThirdPanel(int x) {
   //third panel : bus and bikes -32→-64
   if(x >= -63 && x < -32) {
+    if(busStopEnabled)
       printBusStop(x+34, departure1, route1);
     if(timeEnabled)
       printTime(x+32);
